@@ -1,0 +1,13 @@
+[project]
+name = "sdd-ollama"
+version = "0.1.0"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "crewai-tools>=1.14.0",
+    "ddgs>=9.13.0",
+    "ollama>=0.6.1",
+    "python-dotenv>=1.1.1",
+    "pyyaml>=6.0.3",
+    "requests>=2.32.5",
+    "rich>=14.3.3",
+]

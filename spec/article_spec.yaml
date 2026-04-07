@@ -1,0 +1,65 @@
+article:
+  required_sections:
+    - tldr
+    - o_que_e
+    - requisitos
+    - instalacao
+    - configuracao
+    - exemplo_pratico
+    - armadilhas
+    - otimizacoes
+    - referencias
+  quality_rules:
+    no_placeholders:
+      patterns:
+        - "[Descreva"
+        - "[TODO"
+        - "[X]"
+        - "[inserir"
+        - "PREENCHER"
+        - "DADO AUSENTE"
+        - "NÃO ENCONTRADO"
+        - "NAO ENCONTRADO"
+        - "NOT FOUND"
+        - "N/A"
+    min_references: 3
+    min_errors: 2
+    min_tips: 3
+    hardware_sanity:
+      max_ram_minimum_gb: 2
+
+research:
+  required_fields:
+    - urls
+    - instalacao
+    - requisitos
+    - erros
+    - alternativas
+  search_queries:
+    - "{tool} minimum requirements RAM CPU"
+    - "{tool} installation official docs"
+    - "{tool} common errors site:stackoverflow.com"
+    - "{tool} vs {alternative} comparison"
+
+analysis:
+  required_fields:
+    - tabela_requisitos
+    - tabela_comparacao
+    - pros
+    - contras
+    - otimizacoes
+
+models:
+  researcher: "qwen2.5:14b-instruct-q4_K_M"
+  analyst:    "qwen2.5:14b-instruct-q4_K_M"
+  writer:     "qwen2.5:14b-instruct-q5_K_M "
+  critic:     "qwen2.5:7b-instruct-q5_K_M"
+
+ollama:
+  base_url: "http://localhost:11434"
+  temperature:
+    researcher: 0.1
+    analyst:    0.1
+    writer:     0.3
+    critic:     0.0
+  context_length: 8192

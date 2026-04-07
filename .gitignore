@@ -1,0 +1,7 @@
+.venv
+.env
+.memory/
+output/
+artigos/
+.idea
+.vscode
