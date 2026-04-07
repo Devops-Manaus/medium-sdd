@@ -2,7 +2,7 @@
 
 Gerador de artigos técnicos comparativos usando LLMs locais via Ollama.
 
-Você informa as ferramentas, o contexto de uso e as perguntas que o artigo deve responder. O sistema pesquisa, analisa, escreve e valida — tudo rodando na sua máquina, sem enviar dados para APIs externas.
+Você informa as ferramentas, o contexto de uso e as perguntas que o artigo deve responder. O sistema pesquisa (via DuckDuckGo), analisa, escreve e valida. Tudo roda na sua máquina sem enviar dados para APIs pagas ou depender de chaves externas.
 
 ---
 
@@ -12,9 +12,9 @@ SDD (Spec-Driven Development) é uma abordagem onde a **especificação é a fon
 
 No desenvolvimento tradicional de conteúdo técnico, o que é um "bom artigo" vive na cabeça de quem escreve. Aqui, vive em `spec/article_spec.yaml`. Isso significa que:
 
-- O modelo não decide o que é aceitável — a spec decide
-- A validação é determinística, não subjetiva
-- Quando a spec muda, o comportamento muda junto em todo o pipeline
+- O modelo não decide o que é aceitável. A spec decide.
+- A validação é determinística e não subjetiva.
+- Quando a spec muda, o comportamento muda junto em todo o pipeline.
 
 O resultado prático é que o sistema **rejeita outputs ruins automaticamente** e tenta corrigir antes de entregar.
 
@@ -30,15 +30,15 @@ Cada etapa do pipeline é uma classe especializada com responsabilidade única. 
 
 | Skill | Responsabilidade |
 |-------|-----------------|
-| `ResearcherSkill` | Busca na web e extrai dados factuais |
+| `ResearcherSkill` | Busca na web (DuckDuckGo) e extrai dados factuais |
 | `AnalystSkill` | Transforma dados brutos em análise comparativa |
 | `WriterSkill` | Monta o artigo seguindo a spec |
 | `CriticSkill` | Valida o artigo em duas camadas |
 
 ### Critic em duas camadas
-**Camada 1 — Determinística:** verifica estrutura, placeholders, URLs e mínimos de qualidade. Sem LLM, sem custo de tokens, sempre confiável.
+**Camada 1 (Determinística):** Verifica estrutura, placeholders, URLs e mínimos de qualidade. Sem LLM, sem custo de tokens, sempre confiável.
 
-**Camada 2 — Semântica:** pergunta ao modelo se há contradições internas ou números impossíveis. Só roda se a camada 1 passou.
+**Camada 2 (Semântica):** Pergunta ao modelo se há contradições internas ou números impossíveis. Só roda se a camada 1 passou.
 
 Se o artigo reprovar, o pipeline tenta corrigir automaticamente (máximo 3 iterações) antes de salvar.
 
@@ -58,10 +58,10 @@ Cada etapa mostra spinner, tempo de execução e resultado em tempo real. Métri
 
 ## Estrutura do projeto
 
-```
+```text
 projeto/
 ├── spec/
-│   └── article_spec.yaml      # contrato — edite aqui para mudar comportamento
+│   └── article_spec.yaml      # contrato - edite aqui para mudar comportamento
 ├── memory/
 │   └── memory_store.py        # memória persistente entre execuções
 ├── validators/
@@ -72,7 +72,7 @@ projeto/
 │   ├── writer.py              # geração do artigo
 │   └── critic.py              # validação em duas camadas
 ├── tools/
-│   └── search_tool.py         # integração SerpAPI
+│   └── search_tool.py         # integração DuckDuckGo
 ├── logger.py                  # output visual com Rich
 ├── pipeline.py                # orquestração do fluxo
 ├── main.py                    # CLI interativo
@@ -89,7 +89,7 @@ projeto/
 
 **Rust** (necessário para compilar dependências Python):
 ```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+curl --proto '=https' --tlsv1.2 -sSf [https://sh.rustup.rs](https://sh.rustup.rs) | sh
 source ~/.cargo/env
 rustup default stable
 ```
@@ -97,19 +97,19 @@ rustup default stable
 **Ollama:**
 ```bash
 # Linux
-curl -fsSL https://ollama.com/install.sh | sh
+curl -fsSL [https://ollama.com/install.sh](https://ollama.com/install.sh) | sh
 
 # Windows
-# baixe em https://ollama.com/download/windows
+# baixe em [https://ollama.com/download/windows](https://ollama.com/download/windows)
 ```
 
 **uv** (gerenciador de pacotes):
 ```bash
 # Linux/macOS
-curl -LsSf https://astral.sh/uv/install.sh | sh
+curl -LsSf [https://astral.sh/uv/install.sh](https://astral.sh/uv/install.sh) | sh
 
 # Windows
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+powershell -ExecutionPolicy ByPass -c "irm [https://astral.sh/uv/install.ps1](https://astral.sh/uv/install.ps1) | iex"
 ```
 
 ### 2. Clone e configure o projeto
@@ -120,14 +120,16 @@ cd sdd-ollama
 
 # cria ambiente virtual com Python 3.12
 uv venv --python 3.12
-uv add ollama requests python-dotenv pyyaml rich
+uv add ollama requests python-dotenv pyyaml rich duckduckgo-search
 ```
 
 ### 3. Baixe os modelos
 
+Atente-se ao limite de hardware. Modelos 14B exigem pelo menos 16GB de RAM. Se você possui 8GB de RAM, utilize apenas modelos 7B ou 8B.
+
 ```bash
-ollama pull qwen2.5:7b    # researcher, analyst, critic
-ollama pull qwen2.5:14b   # writer (precisa de mais capacidade)
+ollama pull qwen2.5:7b    # modelo recomendado para máquinas com 8GB RAM
+# ollama pull qwen2.5:14b # baixe apenas se possuir 16GB+ de RAM
 ```
 
 Verifique se estão disponíveis:
@@ -135,18 +137,9 @@ Verifique se estão disponíveis:
 ollama list
 ```
 
-### 4. Configure as variáveis de ambiente
+### 4. Verifique a configuração
 
-Crie um arquivo `.env` na raiz:
-```env
-SERPAPI_API_KEY=sua_chave_aqui
-```
-
-Obtenha sua chave gratuita em [serpapi.com](https://serpapi.com).
-
-### 5. Verifique a configuração
-
-Confirme que o Ollama está rodando:
+Nenhuma chave de API é necessária, pois a busca web utiliza o DuckDuckGo de forma gratuita. Confirme apenas que o Ollama está rodando:
 ```bash
 curl http://localhost:11434
 # deve retornar: Ollama is running
@@ -162,24 +155,24 @@ python main.py
 
 O CLI vai guiar você por quatro perguntas:
 
-**1. Ferramentas** — o que você quer comparar ou analisar:
-```
+**1. Ferramentas** (o que você quer comparar ou analisar):
+```text
 podman e docker
 kafka e flink
 ollama
 prometheus e grafana
 ```
 
-**2. Contexto** — para qual situação específica:
-```
+**2. Contexto** (para qual situação específica):
+```text
 ambiente de desenvolvimento local no Linux
 pipeline de ingestão de logs em tempo real
 rodando LLMs com até 8GB de RAM
 observability em stack FastAPI com docker compose
 ```
 
-**3. Foco** — qual aspecto aprofundar:
-```
+**3. Foco** (qual aspecto aprofundar):
+```text
 1. comparação geral
 2. performance / throughput
 3. custo
@@ -190,16 +183,16 @@ observability em stack FastAPI com docker compose
 8. quantização / modelos locais
 ```
 
-**4. Perguntas** — o que o artigo deve responder explicitamente:
-```
+**4. Perguntas** (o que o artigo deve responder explicitamente):
+```text
 como configurar modo rootless?
 docker-compose funciona sem mudanças no podman?
 qual tem menor uso de RAM em idle?
 [enter para terminar]
 ```
 
-**5. Critérios de validação** — checklist manual após a geração:
-```
+**5. Critérios de validação** (checklist manual após a geração):
+```text
 menciona que podman é daemonless
 tem tabela comparativa com pelo menos 4 critérios
 [enter para terminar]
@@ -209,7 +202,7 @@ tem tabela comparativa com pelo menos 4 critérios
 
 ## O que é gerado
 
-```
+```text
 artigos/
 └── podman-e-docker_20250407_1430.md   # artigo final
 
@@ -229,13 +222,13 @@ output/
 
 ## Configuração avançada
 
-Edite `spec/article_spec.yaml` para personalizar:
+Edite `spec/article_spec.yaml` para personalizar. Ajuste os modelos de acordo com a sua memória RAM disponível.
 
 ```yaml
 # trocar modelos
 models:
   researcher: "qwen2.5:7b"
-  writer:     "qwen2.5:14b"   # use modelo maior para melhor qualidade
+  writer:     "qwen2.5:7b"   # altere para 14b apenas se tiver 16GB+ RAM
   critic:     "qwen2.5:7b"
 
 # ajustar temperatura
@@ -253,21 +246,21 @@ article:
 
 ---
 
-## Limitações conhecidas
+## Limitações Críticas e Conhecidas
 
-**O sistema gera rascunhos, não artigos publicáveis.** A pesquisa é baseada em snippets de busca — não no conteúdo completo das páginas. Dados factuais como versões, comandos e requisitos de hardware devem ser verificados antes de publicar.
+**O pipeline tem um gargalo na ingestão de dados.** A pesquisa baseia-se nos resultados resumidos fornecidos pelo DuckDuckGo. O sistema não lê o código HTML completo das páginas de destino. Isso força o modelo a preencher lacunas com seu conhecimento prévio, o que pode gerar alucinações técnicas. Verifique rigorosamente os dados factuais gerados antes da publicação.
 
-**Modelos 7B cometem erros.** O Critic detecta problemas estruturais com confiança mas a validação semântica é limitada. O checklist manual ao final é a camada de qualidade mais importante.
+**Rate Limits do DuckDuckGo.** Como a ferramenta faz scraping direto no buscador de forma não-oficial, rodar o pipeline múltiplas vezes em um curto período pode resultar em bloqueio temporário (rate limit) do seu IP pelo DuckDuckGo.
 
-**SerpAPI tem limite de requisições no plano gratuito.** Cada execução faz entre 8 e 12 buscas. O plano gratuito oferece 100 buscas por mês.
+**Atenção aos limites de memória RAM.** O carregamento de modelos 14B em máquinas com 8GB de RAM causará esgotamento de memória e paginação severa no disco. Configure o `article_spec.yaml` para usar modelos 7B se o seu hardware for limitado.
 
 ---
 
 ## Como a memória melhora o sistema ao longo do tempo
 
-Na primeira execução, a memória está vazia — o sistema se comporta como qualquer pipeline sem estado.
+Na primeira execução a memória está vazia. O sistema se comporta como qualquer pipeline sem estado.
 
-A partir da segunda execução, se houve correções na primeira, essas lições são injetadas no contexto do writer antes de gerar. Com o tempo, problemas recorrentes são resolvidos antes de acontecer.
+A partir da segunda execução, se houve correções na primeira, essas lições são injetadas no contexto do writer antes de gerar. Problemas recorrentes são resolvidos antes de acontecer.
 
 Para inspecionar o que foi aprendido:
 ```bash
@@ -445,8 +438,8 @@ Critérios:
 
 ## Roadmap
 
-- [ ] Testes unitários para componentes determinísticos
-- [ ] Feedback loop: checklist manual alimenta a memória automaticamente  
-- [ ] Scraping completo de páginas em vez de snippets
-- [ ] Observability persistente com histórico de execuções
-- [ ] Suporte a múltiplos idiomas na spec
+- [ ] Plugar um extrator de web scraping completo (ex: Playwright/BeautifulSoup) para contornar a limitação de ler apenas os snippets de busca.
+- [ ] Testes unitários para componentes determinísticos.
+- [ ] Feedback loop: checklist manual alimenta a memória automaticamente.
+- [ ] Observability persistente com histórico de execuções.
+- [ ] Suporte a múltiplos idiomas na spec.
