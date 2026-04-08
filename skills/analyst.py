@@ -1,6 +1,7 @@
 import yaml
 from pathlib import Path
-from ollama import Client
+
+from llm import LLMClient
 
 
 class AnalystSkill:
@@ -8,11 +9,13 @@ class AnalystSkill:
     def __init__(self, memory, spec_path="spec/article_spec.yaml"):
         self.memory = memory
         self.spec   = yaml.safe_load(Path(spec_path).read_text())
-        self.model  = self.spec["models"]["analyst"]
-        self.temp   = self.spec["ollama"]["temperature"]["analyst"]
-        timeouts = self.spec["ollama"].get("timeout", {})
+        self.llm    = LLMClient(spec_path)
+        self.model  = self.llm.model_for_role("analyst")
+        llm_conf = self.spec.get("llm", {})
+        temperatures = llm_conf.get("temperature", self.spec.get("ollama", {}).get("temperature", {}))
+        timeouts = llm_conf.get("timeout", self.spec.get("ollama", {}).get("timeout", {}))
+        self.temp   = temperatures["analyst"]
         self.timeout = timeouts.get("analyst", timeouts.get("default", 300))
-        self.llm    = Client(host=self.spec["ollama"]["base_url"], timeout=self.timeout)
 
     def run(self, research, ferramentas, contexto,
             foco="comparação geral", questoes=None):
@@ -68,9 +71,11 @@ REGRAS CRÍTICAS:
 [1 parágrafo: recomendação para "{contexto}" considerando "{foco}"]
 """
         resp = self.llm.generate(
+            role="analyst",
             model=self.model,
             prompt=prompt,
-            options={"temperature": self.temp},
+            temperature=self.temp,
+            timeout=self.timeout,
         )
 
         self.memory.log_event("analysis_done", {

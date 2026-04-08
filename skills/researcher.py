@@ -1,6 +1,7 @@
 import yaml
 from pathlib import Path
-from ollama import Client
+
+from llm import LLMClient
 
 FOCUS_QUERIES: dict[str, list[str]] = {
     "comparação geral": [
@@ -132,11 +133,13 @@ class ResearcherSkill:
         self.scraper = scraper_tool
         self.memory = memory
         self.spec = yaml.safe_load(Path(spec_path).read_text())
-        self.model = self.spec["models"]["researcher"]
-        self.temp = self.spec["ollama"]["temperature"]["researcher"]
-        timeouts = self.spec["ollama"].get("timeout", {})
+        self.llm = LLMClient(spec_path)
+        self.model = self.llm.model_for_role("researcher")
+        llm_conf = self.spec.get("llm", {})
+        temperatures = llm_conf.get("temperature", self.spec.get("ollama", {}).get("temperature", {}))
+        timeouts = llm_conf.get("timeout", self.spec.get("ollama", {}).get("timeout", {}))
+        self.temp = temperatures["researcher"]
         self.timeout = timeouts.get("researcher", timeouts.get("default", 300))
-        self.llm = Client(host=self.spec["ollama"]["base_url"], timeout=self.timeout)
 
     # ------------------------------------------------------------------
     # público
@@ -196,9 +199,11 @@ Produza o relatório:
 [ferramentas comparadas nos resultados]
 """
         resp = self.llm.generate(
+            role="researcher",
             model=self.model,
             prompt=prompt,
-            options={"temperature": self.temp},
+            temperature=self.temp,
+            timeout=self.timeout,
         )
 
         self.memory.log_event("research_done", {

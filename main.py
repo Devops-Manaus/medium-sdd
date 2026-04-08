@@ -134,7 +134,7 @@ def main():
     console.print()
     console.print(Panel.fit(
         "[bold cyan]SDD Tech Writer[/bold cyan]\n"
-        "[dim]Geração de artigos técnicos com LLM local[/dim]",
+        "[dim]Geração de artigos técnicos com LLM configurável[/dim]",
         border_style="cyan",
     ))
     console.print()

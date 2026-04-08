@@ -1,7 +1,8 @@
 import yaml
 from pathlib import Path
-from ollama import Client
 from validators.spec_validator import SpecValidator
+
+from llm import LLMClient
 
 
 class CriticSkill:
@@ -9,11 +10,13 @@ class CriticSkill:
     def __init__(self, memory, spec_path="spec/article_spec.yaml"):
         self.memory    = memory
         self.spec      = yaml.safe_load(Path(spec_path).read_text())
-        self.model     = self.spec["models"]["critic"]
-        self.temp      = self.spec["ollama"]["temperature"]["critic"]
-        timeouts = self.spec["ollama"].get("timeout", {})
+        self.llm       = LLMClient(spec_path)
+        self.model     = self.llm.model_for_role("critic")
+        llm_conf = self.spec.get("llm", {})
+        temperatures = llm_conf.get("temperature", self.spec.get("ollama", {}).get("temperature", {}))
+        timeouts = llm_conf.get("timeout", self.spec.get("ollama", {}).get("timeout", {}))
+        self.temp      = temperatures["critic"]
         self.timeout = timeouts.get("critic", timeouts.get("default", 300))
-        self.llm       = Client(host=self.spec["ollama"]["base_url"], timeout=self.timeout)
         self.validator = SpecValidator(spec_path)
 
     def evaluate(self, artigo: str, ferramentas: str) -> dict:
@@ -73,9 +76,11 @@ ARTIGO:
 {artigo[:4000]}
 """
         resp = self.llm.generate(
+            role="critic",
             model=self.model,
             prompt=prompt,
-            options={"temperature": self.temp},
+            temperature=self.temp,
+            timeout=self.timeout,
         )
         text = resp.response.strip()
         if "SEM PROBLEMAS" in text.upper():

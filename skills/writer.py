@@ -1,6 +1,7 @@
 import yaml
 from pathlib import Path
-from ollama import Client
+
+from llm import LLMClient
 
 
 class WriterSkill:
@@ -8,13 +9,15 @@ class WriterSkill:
     def __init__(self, memory, spec_path="spec/article_spec.yaml"):
         self.memory = memory
         self.spec   = yaml.safe_load(Path(spec_path).read_text())
-        self.model  = self.spec["models"]["writer"]
-        self.temp   = self.spec["ollama"]["temperature"]["writer"]
-        timeouts = self.spec["ollama"].get("timeout", {})
+        self.llm    = LLMClient(spec_path)
+        self.model  = self.llm.model_for_role("writer")
+        llm_conf = self.spec.get("llm", {})
+        temperatures = llm_conf.get("temperature", self.spec.get("ollama", {}).get("temperature", {}))
+        timeouts = llm_conf.get("timeout", self.spec.get("ollama", {}).get("timeout", {}))
+        context_length = llm_conf.get("context_length", self.spec.get("ollama", {}).get("context_length", {}))
+        self.temp   = temperatures["writer"]
         self.timeout = timeouts.get("writer", timeouts.get("default", 300))
-        self.llm    = Client(host=self.spec["ollama"]["base_url"], timeout=self.timeout)
-        ctx = self.spec["ollama"].get("context_length", {})
-        self.ctx_len = ctx.get("writer", ctx.get("default", 8192))
+        self.ctx_len = context_length.get("writer", context_length.get("default", 8192))
 
     def run(self, research, analysis, ferramentas, contexto,
             foco="comparação geral", questoes=None,
@@ -148,12 +151,12 @@ TEMPLATE (inclua TODAS as seções):
 [mínimo 3 URLs reais da pesquisa, formato: - URL]
 """
         resp = self.llm.generate(
+            role="writer",
             model=self.model,
             prompt=prompt,
-            options={
-                "temperature": self.temp,
-                "num_ctx": self.ctx_len,
-            },
+            temperature=self.temp,
+            num_ctx=self.ctx_len,
+            timeout=self.timeout,
         )
         self.memory.log_event("article_written", {"ferramentas": ferramentas})
         return resp.response

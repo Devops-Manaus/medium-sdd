@@ -93,25 +93,52 @@ analysis:
     - contras
     - otimizacoes
 
+# ── Modelos ──────────────────────────────────────────────────────
+# Fonte principal: .env (LLM_MODEL_RESEARCHER/ANALYST/WRITER/CRITIC)
+# Este bloco fica como fallback caso as variáveis não existam.
+
+# ── Opção 1: OpenRouter free (ATUAL — descomentado) ─────────────
 models:
-  researcher: "glm-5.1:cloud"
-  analyst:    "glm-4.7-flash:q4_K_M"
-  writer:     "gemma4:26b"
-  critic:     "qwen2.5:7b-instruct-q5_K_M"
+  researcher: "z-ai/glm-4.5-air:free"
+  analyst:    "z-ai/glm-4.5-air:free"
+  writer:     "z-ai/glm-4.5-air:free"
+  critic:     "z-ai/glm-4.5-air:free"
 
-#models: para rodar em batatas
-#  researcher: "gemma4:e2b"
-#  analyst:    "gemma4:e2b"
-#  writer:     "gemma4:e4b"
-#  critic:     "gemma4:e2b"
+# ── Opção 2: Ollama local ───────────────────────────────────────
+# 3a) 8 GB RAM, CPU only (descomente para usar)
+# models:
+#   researcher: "gemma3:4b"
+#   analyst:    "gemma3:4b"
+#   writer:     "gemma3:12b"
+#   critic:     "gemma3:4b"
+#
+# 3b) 16 GB RAM, CPU only (descomente para usar)
+# models:
+#   researcher: "gemma3:12b"
+#   analyst:    "gemma3:12b"
+#   writer:     "qwen3:14b"
+#   critic:     "gemma3:12b"
+#
+# 3c) 32 GB RAM + 8 GB VRAM (descomente para usar)
+# models:
+#   researcher: "qwen3:8b"
+#   analyst:    "qwen3:8b"
+#   writer:     "qwen3:30b-a3b"
+#   critic:     "qwen3:8b"
 
-ollama:
-  base_url: "http://localhost:11434"
+# ── LLM ──────────────────────────────────────────────────────────
+# Fonte principal: .env (LLM_PROVIDER)
+# Valores suportados no .env:
+#   ollama_local | ollama_cloud | openrouter_free
+# Campo abaixo é fallback para manter compatibilidade.
+
+llm:
+  provider: "openrouter_free"
   timeout:
-    researcher: 3200
-    analyst:    3200
-    writer:     3200
-    critic:    3200
+    researcher: 600
+    analyst:    600
+    writer:     600
+    critic:     600
     default:   600
   temperature:
     researcher: 0.1
@@ -121,3 +148,11 @@ ollama:
   context_length:
     default: 8192
     writer:  16384
+  providers:
+    openrouter:
+      base_url: "https://openrouter.ai/api/v1"
+      api_key_env: "OPENROUTER_API_KEY"
+      app_name: "SDD Tech Writer"
+      site_url: ""
+    ollama:
+      base_url: "http://localhost:11434"

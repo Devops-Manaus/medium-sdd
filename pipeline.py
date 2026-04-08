@@ -73,9 +73,6 @@ class SDDPipeline:
         tools_list     = self._parse_tools(ferramentas)
         research_parts = []
 
-        timeouts = self.spec["ollama"].get("timeout", {})
-        default_timeout = timeouts.get("default", 300)
-
         for tool in tools_list:
             alt = next((t for t in tools_list if t != tool), "")
             with self.log.task(f"Pesquisando {tool}"):
