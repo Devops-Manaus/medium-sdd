@@ -94,10 +94,10 @@ analysis:
     - otimizacoes
 
 models:
-  researcher: "gemma4:26b"
+  researcher: "glm-5.1:cloud"
   analyst:    "glm-4.7-flash:q4_K_M"
   writer:     "gemma4:26b"
-  critic:     "glm-4.7-flash:q4_K_M"
+  critic:     "qwen2.5:7b-instruct-q5_K_M"
 
 #models: para rodar em batatas
 #  researcher: "gemma4:e2b"
@@ -108,8 +108,8 @@ models:
 ollama:
   base_url: "http://localhost:11434"
   timeout:
-    researcher: 300
-    analyst:    300
+    researcher: 3200
+    analyst:    3200
     writer:     3200
     critic:    3200
     default:   600
