@@ -94,9 +94,9 @@ analysis:
     - otimizacoes
 
 models:
-  researcher: "glm-5.1:cloud"
-  analyst:    "glm-5.1:cloud"
-  writer:     "glm-4.7-flash:q4_K_M"
+  researcher: "gemma4:e4b"
+  analyst:    "glm-4.7-flash:q4_K_M"
+  writer:     "gemma4:26b"
   critic:     "glm-4.7-flash:q4_K_M"
 
 #models: para rodar em batatas
