@@ -1187,6 +1187,646 @@ Critérios:
 
 ---
 
+## Dados — Open Source
+
+### DuckDB vs Polars
+
+**Versão leigo:**
+```
+Ferramentas: duckdb e polars
+Contexto:    quero analisar arquivos CSV grandes no meu computador sem ficar lento
+Foco:        1 (comparação geral)
+
+Perguntas:
+  qual é mais rápido pra trabalhar com dados?
+  qual usa menos memória?
+  qual é mais fácil de aprender?
+  dá pra usar em notebooks Python?
+
+Critérios:
+  explica sem assumir que conheço SQL
+  tem exemplo prático com arquivo CSV
+  compara performance com números reais
+  mostra como instalar e começar em 5 minutos
+```
+
+**Versão técnica:**
+```
+Ferramentas: duckdb e polars
+Contexto:    análise OLAP em arquivos Parquet com 10GB+ em notebooks Jupyter
+Foco:        2 (performance / throughput)
+
+Perguntas:
+  qual executa queries mais rápido em Parquet?
+  como cada um usa SIMD e paralelismo?
+  qual suporta melhor pushdown predicates?
+  como configurar memory pool otimizado?
+
+Critérios:
+  compara benchmark real com Parquet
+  menciona SIMD vectorization em ambos
+  tem exemplo de query com explain plan
+  referencia benchmarks oficiais de ambos
+```
+
+---
+
+### Apache Superset vs Apache Airflow (Data Visualization)
+
+**Versão leigo:**
+```
+Ferramentas: apache superset e apache airflow
+Contexto:    quero criar dashboards que mostram dados de forma legal pra gerente
+Foco:        1 (comparação geral)
+
+Perguntas:
+  qual é mais fácil de fazer gráficos bonitos?
+  qual conecta melhor com banco de dados?
+  preciso saber código pra usar?
+  qual roda no meu servidor local?
+
+Critérios:
+  explica que Superset é pra visualização e Airflow é pra automação
+  tem exemplo de dashboard real
+  não assume que sei Python ou SQL
+  mostra como conectar num banco de dados simples
+```
+
+**Versão técnica:**
+```
+Ferramentas: apache superset e trino (query federation)
+Contexto:    analytics em federação de múltiplos data warehouses
+Foco:        5 (integração)
+
+Perguntas:
+  como integrar Superset com Trino para queries federated?
+  qual é o limite de performance em queries grandes?
+  como cachear resultados de forma eficiente?
+  qual suporta melhor custom SQL vs visual builder?
+
+Critérios:
+  menciona conexão de Superset + Trino
+  explica query federation sem jargão
+  tem exemplo com múltiplas datasources
+  diferencia query caching vs resultado caching
+```
+
+---
+
+### Airbyte vs Supabase Migrations
+
+**Versão leigo:**
+```
+Ferramentas: airbyte e supabase
+Contexto:    quero sincronizar dados entre meu app e banco de dados automaticamente
+Foco:        5 (integração)
+
+Perguntas:
+  qual sincroniza dados automaticamente?
+  qual é mais fácil de configurar?
+  funciona sem programar?
+  qual tem mais conectores prontos?
+
+Critérios:
+  diferencia Airbyte (ELT) de Supabase (managed Postgres)
+  tem exemplo de sincronização real
+  não assume conhecimento de pipeline de dados
+  mostra como testar localmente
+```
+
+**Versão técnica:**
+```
+Ferramentas: airbyte vs fivetran (self-hosted) vs meltano
+Contexto:    pipeline ELT de 15+ datasources em data warehouse Postgres
+Foco:        2 (performance / throughput)
+
+Perguntas:
+  qual suporta incremental replication sem CDC?
+  como cada um lida com schema evolution?
+  qual tem menor latência fim-a-fim?
+  como monitorar e alertar em caso de falha?
+
+Critérios:
+  compara incremental sync vs full sync
+  menciona CDC (Change Data Capture)
+  tem exemplo com postgres como destino
+  não confunde ELT com ETL
+```
+
+---
+
+## DevOps — Open Source
+
+### Terraform vs Ansible vs Pulumi
+
+**Versão leigo:**
+```
+Ferramentas: terraform, ansible, pulumi
+Contexto:    quero criar e manter servidores na nuvem sem clicar no console
+Foco:        1 (comparação geral)
+
+Perguntas:
+  qual é mais fácil de começar?
+  qual funciona em AWS, Azure e GCP?
+  posso usar a mesma coisa pra todos os clouds?
+  qual meu time consegue aprender rápido?
+
+Critérios:
+  explica o que é Infrastructure as Code sem jargão
+  tem exemplo pequeno pra cada um
+  não assume conhecimento de cloud
+  menciona que o arquivo fica em version control
+```
+
+**Versão técnica:**
+```
+Ferramentas: terraform, ansible, pulumi
+Contexto:    multi-cloud infra em AWS/Azure/GCP com state management centralizado
+Foco:        1 (comparação geral)
+
+Perguntas:
+  qual tem melhor support para modularity e code reuse?
+  como cada um lida com state file em ambiente distribuído?
+  qual integra melhor com Kubernetes?
+  como fazer rollback seguro de infra changes?
+
+Critérios:
+  menciona que Terraform usa state vs Ansible é stateless
+  tem exemplo com módulos Terraform reutilizáveis
+  explica provisioner vs modules
+  compara Terraform remote state vs local
+```
+
+---
+
+### Prometheus vs VictoriaMetrics
+
+**Versão leigo:**
+```
+Ferramentas: prometheus e victoriametrics
+Contexto:    quero monitorar meus servidores e saber quando algo está errado
+Foco:        1 (comparação geral)
+
+Perguntas:
+  qual é mais fácil de instalar?
+  qual consome menos disco pra guardar dados?
+  qual funciona melhor se tiver muitos servidores?
+  qual é de graça?
+
+Critérios:
+  explica o que é time-series database sem jargão
+  tem exemplo de métrica simples
+  compara consumo de disco entre os dois
+  não assume que sei Kubernetes
+```
+
+**Versão técnica:**
+```
+Ferramentas: prometheus vs victoriametrics vs influxdb
+Contexto:    monitoramento em escala de 10k+ métricas/segundo
+Foco:        2 (performance / throughput)
+
+Perguntas:
+  qual escala melhor horizontalmente?
+  qual tem menor latência de escrita?
+  como cada um implementa retenção de dados?
+  qual suporta melhor federated scraping?
+
+Critérios:
+  menciona que VictoriaMetrics é drop-in replacement
+  compara retention e compaction strategies
+  tem benchmark real com k8s
+  explica remote write vs federated scraping
+```
+
+---
+
+### HashiCorp Vault vs Sealed Secrets (Kubernetes)
+
+**Versão leigo:**
+```
+Ferramentas: hashicorp vault e sealed secrets
+Contexto:    quero guardar senhas e chaves de forma segura no Kubernetes
+Foco:        6 (segurança)
+
+Perguntas:
+  qual é mais seguro pra guardar secrets?
+  qual é mais fácil de usar com Kubernetes?
+  como recupero a senha se esquecer?
+  qual é de graça?
+
+Critérios:
+  explica o que é secret management sem jargão
+  tem exemplo de como usar no Kubernetes
+  não assume conhecimento de criptografia
+  avisa sobre armadilhas comuns
+```
+
+**Versão técnica:**
+```
+Ferramentas: hashicorp vault vs sealed-secrets vs external-secrets-operator
+Contexto:    multi-cluster Kubernetes com gestão centralizada de secrets
+Foco:        6 (segurança)
+
+Perguntas:
+  qual suporta melhor dynamic secrets?
+  como cada um implementa auto-rotation?
+  qual integra melhor com CI/CD pipelines?
+  como fazer disaster recovery de master keys?
+
+Critérios:
+  menciona dynamic secrets vs static secrets
+  explica HSM integration com Vault
+  tem exemplo com external-secrets-operator
+  não trata key rotation como opcional
+```
+
+---
+
+## Backend — Open Source
+
+### FastAPI vs Django vs Flask
+
+**Versão leigo:**
+```
+Ferramentas: fastapi, django, flask
+Contexto:    vou fazer uma API pra meu app mobile e quero escolher a melhor
+Foco:        1 (comparação geral)
+
+Perguntas:
+  qual é mais rápida?
+  qual é melhor pra quem tá começando?
+  qual tem mais exemplos na internet?
+  qual tem melhor documentação?
+
+Critérios:
+  explica sem assumir que sei Python
+  tem exemplo pequenininho de cada um
+  não diz que uma é "melhor" sem contexto
+  mostra como fazer um GET e POST simples
+```
+
+**Versão técnica:**
+```
+Ferramentas: fastapi vs quart vs starlette
+Contexto:    API assíncrona em produção com 10k req/s
+Foco:        2 (performance / throughput)
+
+Perguntas:
+  qual executa requests mais rápido?
+  como cada um implementa async/await?
+  qual tem melhor suporte a OpenAPI/Swagger?
+  qual escala melhor horizontalmente?
+
+Critérios:
+  compara throughput com benchmark real
+  tem exemplo de async handler
+  menciona que FastAPI é mais thin que Django
+  não confunde framework throughput com DB bottleneck
+```
+
+---
+
+### SQLAlchemy vs Tortoise ORM vs Pydantic
+
+**Versão leigo:**
+```
+Ferramentas: sqlalchemy, tortoise orm, pydantic
+Contexto:    quero trabalhar com banco de dados em Python sem escrever SQL
+Foco:        1 (comparação geral)
+
+Perguntas:
+  qual é mais fácil de aprender?
+  qual funciona com qualquer banco de dados?
+  posso usar junto com FastAPI?
+  qual é mais popular?
+
+Critérios:
+  explica ORM sem assumir conhecimento prévio
+  tem exemplo de query simples
+  diferencia Pydantic (validation) de ORM
+  não assume que sei SQL
+```
+
+**Versão técnica:**
+```
+Ferramentas: sqlalchemy 2.0 vs tortoise-orm vs pony-orm
+Contexto:    complex queries com múltiplos joins em PostgreSQL
+Foco:        2 (performance / throughput)
+
+Perguntas:
+  qual gera melhor SQL pra joins complexos?
+  como cada um implementa lazy vs eager loading?
+  qual tem melhor query building API?
+  como monitorar queries geradas?
+
+Critérios:
+  compara EXPLAIN ANALYZE de queries geradas
+  menciona N+1 query problem
+  tem exemplo com relationship loading
+  não assume que todas são iguais
+```
+
+---
+
+### Redis vs Dragonfly vs KeyDB (Cache)
+
+**Versão leigo:**
+```
+Ferramentas: redis, dragonfly, keydb
+Contexto:    quero cachear dados pra minha API ficar mais rápida
+Foco:        1 (comparação geral)
+
+Perguntas:
+  qual é mais rápido?
+  qual usa menos memória?
+  qual é mais fácil de instalar?
+  qual é de graça?
+
+Critérios:
+  explica o que é cache sem jargão
+  tem exemplo de como usar
+  compara consumo de RAM entre os três
+  não assume conhecimento de Redis
+```
+
+**Versão técnica:**
+```
+Ferramentas: redis vs dragonfly vs keydb
+Contexto:    cache em escala de 100GB+ com latência < 1ms
+Foco:        2 (performance / throughput)
+
+Perguntas:
+  qual tem melhor throughput em set/get?
+  qual escala melhor verticalmente?
+  qual suporta melhor persistence (RDB/AOF)?
+  como cada um implementa eviction policies?
+
+Critérios:
+  compara latência p99 entre os três
+  menciona que Dragonfly é multi-threaded
+  tem benchmark com redis-benchmark
+  explica RESP3 vs RESP2
+```
+
+---
+
+## Nuvem Local — Open Source
+
+### Ceph vs MinIO vs SeaweedFS (Object Storage)
+
+**Versão leigo:**
+```
+Ferramentas: ceph, minio, seaweedfs
+Contexto:    quero guardar arquivos grandes no meu servidor sem pagar AWS
+Foco:        1 (comparação geral)
+
+Perguntas:
+  qual é mais fácil de instalar em casa?
+  qual funciona como o S3 da Amazon?
+  qual consome menos energia?
+  qual funciona em computador fraco?
+
+Critérios:
+  explica object storage sem jargão
+  tem exemplo de como fazer upload/download
+  não assume conhecimento de cloud
+  menciona compatibilidade S3 claramente
+```
+
+**Versão técnica:**
+```
+Ferramentas: ceph vs minio vs seaweedfs vs garage
+Contexto:    object storage self-hosted com 500TB em 10 nós
+Foco:        1 (comparação geral)
+
+Perguntas:
+  qual tem melhor replicação?
+  qual escala melhor horizontalmente?
+  como cada um implementa erasure coding?
+  qual tem melhor disaster recovery?
+
+Critérios:
+  compara replication factor vs overhead
+  explica erasure coding de forma clara
+  tem exemplo de multi-node setup
+  não confunde replicação com backup
+```
+
+---
+
+### Kubernetes vs Nomad vs OpenStack
+
+**Versão leigo:**
+```
+Ferramentas: kubernetes, nomad, openstack
+Contexto:    quero rodar containers no meu data center sem depender da AWS
+Foco:        1 (comparação geral)
+
+Perguntas:
+  qual é mais fácil de aprender?
+  qual funciona melhor em servidor fraco?
+  qual posso rodar no meu laptop?
+  qual tem mais documentação?
+
+Critérios:
+  explica container orchestration sem jargão
+  tem exemplo pequeno de deployment
+  não assume conhecimento de Docker
+  avisa sobre curva de aprendizado
+```
+
+**Versão técnica:**
+```
+Ferramentas: kubernetes vs nomad vs hashicorp stack
+Contexto:    orquestração de 100+ serviços em on-premise
+Foco:        1 (comparação geral)
+
+Perguntas:
+  qual tem melhor service discovery?
+  como cada um implementa networking?
+  qual integra melhor com terraform?
+  qual tem menor overhead de recursos?
+
+Critérios:
+  compara CNI plugins disponíveis
+  menciona que Nomad é agnóstico (containers + VM + binários)
+  tem exemplo real de deployment
+  não trata Kubernetes como única opção
+```
+
+---
+
+### OpenVPN vs WireGuard vs Tailscale
+
+**Versão leigo:**
+```
+Ferramentas: openvpn, wireguard, tailscale
+Contexto:    quero acessar meu servidor em casa de forma segura de qualquer lugar
+Foco:        6 (segurança)
+
+Perguntas:
+  qual é mais fácil de configurar?
+  qual é mais seguro?
+  qual consome menos bateria?
+  qual funciona através de proxy/firewall?
+
+Critérios:
+  explica VPN sem assumir conhecimento prévio
+  tem exemplo de configuração básica
+  não trata segurança como feature secundária
+  avisa sobre armadilhas comuns
+```
+
+**Versão técnica:**
+```
+Ferramentas: openvpn vs wireguard vs zerotier
+Contexto:    secure mesh network em 50+ nós geográficos distribuídos
+Foco:        6 (segurança)
+
+Perguntas:
+  qual tem melhor latência e throughput?
+  como cada um implementa encryption?
+  qual suporta melhor key rotation?
+  como configurar multi-hop routing?
+
+Critérios:
+  menciona que WireGuard usa Curve25519
+  compara latência real entre os três
+  tem exemplo de mesh network setup
+  explica zero-trust principles
+```
+
+---
+
+## Linux — Open Source
+
+### systemd vs OpenRC vs s6 (Init System)
+
+**Versão leigo:**
+```
+Ferramentas: systemd, openrc, s6
+Contexto:    quero entender como meus serviços iniciam no Linux
+Foco:        1 (comparação geral)
+
+Perguntas:
+  qual é o mais comum?
+  qual é mais simples de usar?
+  qual usa menos recursos?
+  posso escolher qual usar?
+
+Critérios:
+  explica init system sem jargão
+  tem exemplo de .service file
+  não assume conhecimento prévio
+  avisa sobre armadilhas do systemd
+```
+
+**Versão técnica:**
+```
+Ferramentas: systemd vs openrc vs runit
+Contexto:    embarcado em imagem mínima com <50MB
+Foco:        2 (performance / throughput)
+
+Perguntas:
+  qual tem menor footprint?
+  qual inicia serviços mais rápido?
+  como cada um lida com dependencies?
+  qual tem melhor logging?
+
+Critérios:
+  compara tamanho binário entre os três
+  tem exemplo de dependency ordering
+  menciona que systemd é de facto padrão
+  não assume que é melhor pra todos
+```
+
+---
+
+### LUKS vs VeraCrypt vs dm-crypt (Disk Encryption)
+
+**Versão leigo:**
+```
+Ferramentas: luks, veracrypt, dm-crypt
+Contexto:    quero criptografar meu disco rígido pra ninguém roubá-lo
+Foco:        6 (segurança)
+
+Perguntas:
+  qual é mais seguro?
+  qual é mais fácil de usar?
+  qual funciona melhor se eu esquecer a senha?
+  qual desacelera menos o computador?
+
+Critérios:
+  explica criptografia de disco sem jargão
+  tem exemplo de como ativar
+  não assume conhecimento de criptografia
+  avisa que perder a senha = dados perdidos
+```
+
+**Versão técnica:**
+```
+Ferramentas: luks2 vs tcplay vs dm-crypt vs fscrypt
+Contexto:    full disk encryption em servidor de produção
+Foco:        6 (segurança)
+
+Perguntas:
+  qual oferece melhor key derivation function (KDF)?
+  como cada um implementa key recovery?
+  qual suporta melhor TPM integration?
+  qual tem menor performance impact?
+
+Critérios:
+  menciona que LUKS2 usa Argon2
+  tem exemplo de key management
+  explica hardware vs software encryption
+  não confunde disk encryption com file encryption
+```
+
+---
+
+### Btrfs vs ZFS vs LVM
+
+**Versão leigo:**
+```
+Ferramentas: btrfs, zfs, lvm
+Contexto:    tenho vários discos e quero gerenciar de forma mais inteligente
+Foco:        1 (comparação geral)
+
+Perguntas:
+  qual é mais fácil de usar?
+  qual é mais estável?
+  qual oferece melhor proteção contra corrupção?
+  qual é mais rápido?
+
+Critérios:
+  explica volume management sem jargão
+  tem exemplo de criar pool/volume
+  não assume conhecimento prévio
+  avisa sobre estabilidade de cada um
+```
+
+**Versão técnica:**
+```
+Ferramentas: btrfs vs zfs vs lvm
+Contexto:    NAS com 100TB armazenando dados críticos
+Foco:         (comparação geral)
+
+Perguntas:
+  qual detecta e repara corrupção de dados?
+  qual suporta melhor replicação e backup?
+  qual tem overhead menor?
+  qual é mais maduro em produção?
+
+Critérios:
+  explica checksum e COW (Copy on Write)
+  compara recursos de snapshots
+  menciona que ZFS é proprietário/CDDL
+  tem exemplo real de setup
+```
+
+---
+
 ## Referência rápida — qual foco usar
 
 | Situação | Foco recomendado |
@@ -1200,3 +1840,15 @@ Critérios:
 | Custo é o critério principal | custo |
 | Ambiente de produção com requisitos de segurança | segurança |
 | Pipeline de dados com volume alto | performance / throughput |
+| Analisar arquivos CSV/Parquet grandes | performance / throughput |
+| Synchronizar dados entre systems | integração |
+| Infra em múltiplos clouds | integração |
+| Monitorar servidores e aplicações | performance / throughput |
+| Rodar containers no próprio servidor | comparação geral |
+| Guardar secrets de forma segura | segurança |
+| Criar API rápida e moderna | performance / throughput |
+| Cachear dados em memória | performance / throughput |
+| Armazenar arquivos no próprio servidor | comparação geral |
+| Gerenciar discos e volumes | comparação geral |
+| Criptografar disco completo | segurança |
+| VPN segura para equipe distribuída | segurança |

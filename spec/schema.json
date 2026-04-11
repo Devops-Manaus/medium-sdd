@@ -1,0 +1,191 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SDD Article Specification",
+  "description": "JSON Schema for validating the SDD article specification",
+  "type": "object",
+  "required": ["spec_version", "article", "research", "analysis", "pipeline", "llm"],
+  "properties": {
+    "spec_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the specification"
+    },
+    "spec_changelog": {
+      "type": "object",
+      "description": "Changelog mapping version strings to version details",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "Release date (YYYY-MM-DD format)"
+          },
+          "changes": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "List of changes in this release"
+          }
+        }
+      }
+    },
+    "article": {
+      "type": "object",
+      "required": ["required_sections", "quality_rules"],
+      "description": "Article structure requirements and quality validation rules",
+      "properties": {
+        "required_sections": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 8,
+          "description": "List of required section names in the article"
+        },
+        "quality_rules": {
+          "type": "object",
+          "description": "Quality validation rules with patterns and thresholds",
+          "additionalProperties": true
+        }
+      }
+    },
+    "research": {
+      "type": "object",
+      "required": ["required_fields", "search_queries", "scraper"],
+      "description": "Research phase configuration",
+      "properties": {
+        "required_fields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Required fields in research output"
+        },
+        "search_queries": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Template search queries for research"
+        },
+        "scraper": {
+          "type": "object",
+          "description": "Web scraper configuration",
+          "properties": {
+            "max_chars_per_page": { "type": "integer", "minimum": 100 },
+            "max_scrapes_per_tool": { "type": "integer", "minimum": 1 },
+            "timeout_seconds": { "type": "integer", "minimum": 5 },
+            "skip_domains": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Domain names to skip during scraping"
+            }
+          }
+        }
+      }
+    },
+    "analysis": {
+      "type": "object",
+      "required": ["required_fields"],
+      "description": "Analysis phase configuration",
+      "properties": {
+        "required_fields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Required fields in analysis output"
+        }
+      }
+    },
+    "pipeline": {
+      "type": "object",
+      "required": ["timeout_total_seconds", "max_iterations"],
+      "description": "Pipeline execution configuration",
+      "properties": {
+        "timeout_total_seconds": {
+          "type": "integer",
+          "minimum": 60,
+          "description": "Total timeout for entire pipeline execution in seconds"
+        },
+        "max_iterations": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum number of iterations in write/critic loop"
+        }
+      }
+    },
+    "models": {
+      "type": "object",
+      "description": "LLM model assignments for different roles (optional fallback)",
+      "properties": {
+        "researcher": { "type": "string" },
+        "analyst": { "type": "string" },
+        "writer": { "type": "string" },
+        "critic": { "type": "string" }
+      }
+    },
+    "llm": {
+      "type": "object",
+      "required": ["provider"],
+      "description": "LLM provider configuration",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "Primary LLM provider (e.g., openrouter_free, ollama_local)"
+        },
+        "timeout": {
+          "oneOf": [
+            { "type": "integer", "minimum": 10 },
+            {
+              "type": "object",
+              "properties": {
+                "researcher": { "type": "integer", "minimum": 10 },
+                "analyst": { "type": "integer", "minimum": 10 },
+                "writer": { "type": "integer", "minimum": 10 },
+                "critic": { "type": "integer", "minimum": 10 },
+                "default": { "type": "integer", "minimum": 10 }
+              }
+            }
+          ],
+          "description": "Timeout for LLM requests (per-role or default)"
+        },
+        "temperature": {
+          "oneOf": [
+            { "type": "number", "minimum": 0, "maximum": 2 },
+            {
+              "type": "object",
+              "properties": {
+                "researcher": { "type": "number", "minimum": 0, "maximum": 2 },
+                "analyst": { "type": "number", "minimum": 0, "maximum": 2 },
+                "writer": { "type": "number", "minimum": 0, "maximum": 2 },
+                "critic": { "type": "number", "minimum": 0, "maximum": 2 }
+              }
+            }
+          ],
+          "description": "Temperature for LLM responses (per-role or default)"
+        },
+        "context_length": {
+          "oneOf": [
+            { "type": "integer", "minimum": 1000 },
+            {
+              "type": "object",
+              "properties": {
+                "default": { "type": "integer", "minimum": 1000 },
+                "writer": { "type": "integer", "minimum": 1000 }
+              }
+            }
+          ],
+          "description": "Context window length in tokens"
+        },
+        "providers": {
+          "type": "object",
+          "description": "Provider-specific configurations",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "base_url": { "type": "string", "format": "uri" },
+              "api_key_env": { "type": "string" },
+              "app_name": { "type": "string" },
+              "site_url": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}
