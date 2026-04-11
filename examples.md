@@ -1231,11 +1231,11 @@ Critérios:
 
 ---
 
-### Apache Superset vs Apache Airflow (Data Visualization)
+### Apache Superset vs Metabase
 
 **Versão leigo:**
 ```
-Ferramentas: apache superset e apache airflow
+Ferramentas: apache superset e metabase
 Contexto:    quero criar dashboards que mostram dados de forma legal pra gerente
 Foco:        1 (comparação geral)
 
@@ -1246,7 +1246,7 @@ Perguntas:
   qual roda no meu servidor local?
 
 Critérios:
-  explica que Superset é pra visualização e Airflow é pra automação
+  explica que ambas são BI tools
   tem exemplo de dashboard real
   não assume que sei Python ou SQL
   mostra como conectar num banco de dados simples
@@ -1254,54 +1254,54 @@ Critérios:
 
 **Versão técnica:**
 ```
-Ferramentas: apache superset e trino (query federation)
-Contexto:    analytics em federação de múltiplos data warehouses
-Foco:        5 (integração)
+Ferramentas: apache superset vs metabase vs grafana
+Contexto:    BI em múltiplas datasources (Postgres, BigQuery, S3)
+Foco:        1 (comparação geral)
 
 Perguntas:
-  como integrar Superset com Trino para queries federated?
-  qual é o limite de performance em queries grandes?
-  como cachear resultados de forma eficiente?
-  qual suporta melhor custom SQL vs visual builder?
+  qual tem melhor suporte a diferentes datasources?
+  qual oferece mais opções de visualização?
+  como cada um lida com permissões e multi-tenancy?
+  qual escala melhor com milhões de rows?
 
 Critérios:
-  menciona conexão de Superset + Trino
-  explica query federation sem jargão
-  tem exemplo com múltiplas datasources
-  diferencia query caching vs resultado caching
+  compara tipos de visualização disponíveis
+  explica arquitetura (Superset é mais extensível)
+  tem exemplo de dashboard com múltiplos datasources
+  menciona licensing (Superset é Apache 2.0, Metabase é SSPL)
 ```
 
 ---
 
-### Airbyte vs Supabase Migrations
+### Airbyte vs Fivetran
 
 **Versão leigo:**
 ```
-Ferramentas: airbyte e supabase
-Contexto:    quero sincronizar dados entre meu app e banco de dados automaticamente
-Foco:        5 (integração)
+Ferramentas: airbyte e fivetran
+Contexto:    quero sincronizar dados entre vários sistemas automaticamente
+Foco:        1 (comparação geral)
 
 Perguntas:
-  qual sincroniza dados automaticamente?
   qual é mais fácil de configurar?
-  funciona sem programar?
+  qual sincroniza mais rápido?
   qual tem mais conectores prontos?
+  qual é mais barato?
 
 Critérios:
-  diferencia Airbyte (ELT) de Supabase (managed Postgres)
-  tem exemplo de sincronização real
-  não assume conhecimento de pipeline de dados
-  mostra como testar localmente
+  explica o que é ELT sem jargão
+  tem exemplo de pipeline simples
+  não assume conhecimento de data pipelines
+  mostra qual é gratuito e qual é pago
 ```
 
 **Versão técnica:**
 ```
-Ferramentas: airbyte vs fivetran (self-hosted) vs meltano
+Ferramentas: airbyte vs fivetran vs stitch
 Contexto:    pipeline ELT de 15+ datasources em data warehouse Postgres
 Foco:        2 (performance / throughput)
 
 Perguntas:
-  qual suporta incremental replication sem CDC?
+  qual suporta melhor incremental replication sem CDC?
   como cada um lida com schema evolution?
   qual tem menor latência fim-a-fim?
   como monitorar e alertar em caso de falha?
@@ -1317,11 +1317,11 @@ Critérios:
 
 ## DevOps — Open Source
 
-### Terraform vs Ansible vs Pulumi
+### Terraform vs Pulumi vs CDK
 
 **Versão leigo:**
 ```
-Ferramentas: terraform, ansible, pulumi
+Ferramentas: terraform, pulumi, cdk
 Contexto:    quero criar e manter servidores na nuvem sem clicar no console
 Foco:        1 (comparação geral)
 
@@ -1340,21 +1340,21 @@ Critérios:
 
 **Versão técnica:**
 ```
-Ferramentas: terraform, ansible, pulumi
+Ferramentas: terraform vs pulumi vs aws-cdk
 Contexto:    multi-cloud infra em AWS/Azure/GCP com state management centralizado
 Foco:        1 (comparação geral)
 
 Perguntas:
-  qual tem melhor support para modularity e code reuse?
+  qual tem melhor suporte para modularity e code reuse?
   como cada um lida com state file em ambiente distribuído?
   qual integra melhor com Kubernetes?
   como fazer rollback seguro de infra changes?
 
 Critérios:
-  menciona que Terraform usa state vs Ansible é stateless
-  tem exemplo com módulos Terraform reutilizáveis
-  explica provisioner vs modules
-  compara Terraform remote state vs local
+  Terraform: declarativo (HCL), agnóstico de cloud
+  Pulumi: programático (Python/TypeScript/Go), agnóstico
+  CDK: programático (TypeScript/Python), AWS-only
+  compara vantagens de declarativo vs imperativo
 ```
 
 ---
@@ -1615,11 +1615,11 @@ Critérios:
 
 ---
 
-### Kubernetes vs Nomad vs OpenStack
+### Kubernetes vs Nomad vs Docker Swarm
 
 **Versão leigo:**
 ```
-Ferramentas: kubernetes, nomad, openstack
+Ferramentas: kubernetes, nomad, docker swarm
 Contexto:    quero rodar containers no meu data center sem depender da AWS
 Foco:        1 (comparação geral)
 
@@ -1638,7 +1638,7 @@ Critérios:
 
 **Versão técnica:**
 ```
-Ferramentas: kubernetes vs nomad vs hashicorp stack
+Ferramentas: kubernetes vs nomad vs docker swarm
 Contexto:    orquestração de 100+ serviços em on-premise
 Foco:        1 (comparação geral)
 
@@ -1649,8 +1649,8 @@ Perguntas:
   qual tem menor overhead de recursos?
 
 Critérios:
-  compara CNI plugins disponíveis
-  menciona que Nomad é agnóstico (containers + VM + binários)
+  compara CNI plugins (K8s) vs Nomad agnóstico
+  menciona que Docker Swarm é mais simples mas menos features
   tem exemplo real de deployment
   não trata Kubernetes como única opção
 ```
