@@ -18,9 +18,13 @@ class WriterSkill:
         temperatures = llm_conf.get("temperature", self.spec.get("ollama", {}).get("temperature", {}))
         timeouts = llm_conf.get("timeout", self.spec.get("ollama", {}).get("timeout", {}))
         context_length = llm_conf.get("context_length", self.spec.get("ollama", {}).get("context_length", {}))
+        writer_input = llm_conf.get("writer_input", {})
         self.temp   = temperatures["writer"]
         self.timeout = timeouts.get("writer", timeouts.get("default", 300))
         self.ctx_len = context_length.get("writer", context_length.get("default", 8192))
+        self.max_research_chars = writer_input.get("max_research_chars", 12000)
+        self.max_analysis_chars = writer_input.get("max_analysis_chars", 6000)
+        self.max_correction_chars = writer_input.get("max_correction_chars", 2500)
 
     def run(self, research, analysis, ferramentas, contexto,
             foco="comparação geral", questoes=None,
@@ -33,16 +37,32 @@ class WriterSkill:
         if lessons:
             logger.debug(f"Using memory lessons for writer")
 
+        compact_research = self.compact_text_block(
+            text=research,
+            max_chars=self.max_research_chars,
+            label="DADOS DE PESQUISA",
+        )
+        compact_analysis = self.compact_text_block(
+            text=analysis,
+            max_chars=self.max_analysis_chars,
+            label="ANÁLISE TÉCNICA",
+        )
+
         correction_block = ""
         if correction_instructions:
             logger.debug(f"Applying correction instructions: {len(correction_instructions)} chars")
+            compact_corrections = self.compact_text_block(
+                text=correction_instructions,
+                max_chars=self.max_correction_chars,
+                label="CORREÇÕES",
+            )
             correction_block = f"""
 ############################################################
 # CORREÇÕES OBRIGATÓRIAS — O ARTIGO FOI REPROVADO
 # Se estas correções não forem aplicadas, será reprovado de novo.
 ############################################################
 
-{correction_instructions}
+{compact_corrections}
 
 ATENÇÃO: O artigo anterior foi REJEITADO por conter os problemas acima.
 - Releia CADA problema listado
@@ -91,10 +111,10 @@ FOCO: {foco}
 {research_warning}
 
 DADOS DE PESQUISA:
-{research}
+{compact_research}
 
 ANÁLISE TÉCNICA:
-{analysis}
+{compact_analysis}
 
 REGRAS INVIOLÁVEIS:
 1. NUNCA use placeholders: [Descreva...], [TODO], [X], DADO AUSENTE,
@@ -170,3 +190,20 @@ TEMPLATE (inclua TODAS as seções):
         )
         self.memory.log_event("article_written", {"ferramentas": ferramentas})
         return resp.response
+
+    def compact_text_block(self, text: str, max_chars: int, label: str) -> str:
+        content = (text or "").strip()
+        if len(content) <= max_chars:
+            return content
+
+        head_size = int(max_chars * 0.7)
+        tail_size = max_chars - head_size
+        compacted_content = (
+            f"{content[:head_size]}\n\n"
+            f"[... {label} truncado para caber no contexto ...]\n\n"
+            f"{content[-tail_size:]}"
+        )
+        logger.warning(
+            f"Writer input truncated for {label}: {len(content)} -> {len(compacted_content)} chars"
+        )
+        return compacted_content

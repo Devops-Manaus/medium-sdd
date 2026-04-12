@@ -105,6 +105,11 @@
           "type": "integer",
           "minimum": 1,
           "description": "Maximum number of iterations in write/critic loop"
+        },
+        "max_stagnant_iterations": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Stop early when critic problems stop changing for N consecutive iterations"
         }
       }
     },
@@ -170,6 +175,15 @@
             }
           ],
           "description": "Context window length in tokens"
+        },
+        "writer_input": {
+          "type": "object",
+          "properties": {
+            "max_research_chars": { "type": "integer", "minimum": 1000 },
+            "max_analysis_chars": { "type": "integer", "minimum": 500 },
+            "max_correction_chars": { "type": "integer", "minimum": 300 }
+          },
+          "description": "Character limits used to compact writer prompt inputs"
         },
         "providers": {
           "type": "object",

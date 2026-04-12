@@ -153,7 +153,15 @@ class PipelineLogger:
             self.console.print(f"   [dim]🔍 {query}[/dim]")
         self.event_log.log_event("search_query", {"query": query})
 
-    def found_url(self, url: str, title: str = "", status: str = "", elapsed: float = None):
+    def found_url(
+        self,
+        url: str,
+        title: str = "",
+        status: str = "",
+        elapsed: float = None,
+        source: str = "",
+        scrape_status: str = "",
+    ):
         """Log URL found during research with scraping status and elapsed time.
         
         Emits visual indicator (✓ ok, ⚠ failed, ⊘ skipped) and timing data.
@@ -187,7 +195,9 @@ class PipelineLogger:
             "url": url,
             "title": title,
             "status": status,
-            "elapsed_seconds": elapsed
+            "elapsed_seconds": elapsed,
+            "source": source,
+            "scrape_status": scrape_status,
         })
 
     def search_done(self, tool: str, n_results: int, n_queries: int):

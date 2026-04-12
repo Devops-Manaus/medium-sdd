@@ -1,6 +1,8 @@
 import yaml
 import logging
+import re
 from pathlib import Path
+from urllib.parse import urlparse
 
 from llm import LLMClient
 from logger import EventLog
@@ -119,11 +121,123 @@ DEFAULT_QUERIES = [
     "{tool} best practices production",
 ]
 
-# URLs que gastam tokens sem retornar dados úteis
-SKIP_DOMAINS = {
-    "youtube.com", "youtu.be", "twitter.com", "x.com",
-    "facebook.com", "instagram.com", "tiktok.com",
-    "pinterest.com", "reddit.com/gallery",
+DEFAULT_SKIP_DOMAINS = {
+    "youtube.com", "youtu.be", "m.youtube.com",
+    "twitter.com", "x.com", "t.co",
+    "facebook.com", "fb.com",
+    "instagram.com", "threads.net",
+    "tiktok.com",
+    "pinterest.com",
+    "reddit.com/gallery",
+    "linkedin.com",
+    "twitch.tv", "vimeo.com", "dailymotion.com",
+    "kwai.com", "kuaishou.com", "snapchat.com",
+    "imgur.com", "giphy.com",
+}
+
+NON_TEXT_PATH_MARKERS = (
+    "/shorts/",
+    "/reel/",
+    "/reels/",
+    "/video/",
+    "/videos/",
+    "/watch",
+    "/live/",
+    "/clip/",
+)
+
+NON_TEXT_EXTENSIONS = (
+    ".mp4", ".mov", ".avi", ".mkv", ".webm", ".mp3", ".wav",
+    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg",
+)
+
+LOW_SIGNAL_DOMAINS = {
+    "databasemart.com",
+    "aitooldiscovery.com",
+    "toolify.ai",
+    "g2.com",
+    "saashub.com",
+    "news.ycombinator.com",
+    "slashdot.org",
+    "scribd.com",
+    "udemy.com",
+    "sourceforge.net",
+    "stackshare.io",
+    "openalternative.co",
+}
+
+LOW_SIGNAL_PATH_MARKERS = (
+    "/software/compare/",
+    "/compare/",
+)
+
+TRUSTED_TECH_DOMAINS = {
+    "github.com",
+    "docs.ollama.com",
+    "docs.docker.com",
+    "docs.podman.io",
+    "docs.pola.rs",
+    "kubernetes.io",
+}
+
+HIGH_TRUST_DOMAIN_HINTS = (
+    "docs.",
+    "developer.",
+    "developers.",
+)
+
+MEDIUM_TRUST_DOMAINS = {
+    "medium.com",
+    "dev.to",
+    "substack.com",
+    "readthedocs.io",
+}
+
+TECH_EVIDENCE_TERMS = (
+    "benchmark",
+    "throughput",
+    "latency",
+    "error",
+    "issue",
+    "troubleshoot",
+    "troubleshooting",
+    "install",
+    "quickstart",
+    "docs",
+    "reference",
+    "api",
+    "config",
+    "flag",
+    "command",
+    "docker",
+    "kubernetes",
+    "memory",
+    "ram",
+    "cpu",
+    "vram",
+    "quantization",
+)
+
+QNA_DOMAINS = {
+    "stackoverflow.com",
+    "superuser.com",
+    "serverfault.com",
+}
+
+GENERIC_KEYWORD_TERMS = {
+    "tool",
+    "tools",
+    "stack",
+    "error",
+    "errors",
+    "issue",
+    "issues",
+    "guide",
+    "tutorial",
+    "docs",
+    "official",
+    "alternative",
+    "alternatives",
 }
 
 MAX_SCRAPES_PER_TOOL = 10
@@ -162,21 +276,51 @@ class ResearcherSkill:
         self.pipeline_logger = pipeline_logger
         self.event_log = pipeline_logger.event_log if pipeline_logger else EventLog()
         self.last_scrape_stats = {"ok": 0, "fail": 0, "skipped": 0}
+        skip_domains_from_spec = (
+            self.spec.get("research", {})
+            .get("scraper", {})
+            .get("skip_domains", [])
+        )
+        self.skip_domains = {
+            domain.lower().strip()
+            for domain in (list(DEFAULT_SKIP_DOMAINS) + list(skip_domains_from_spec))
+            if domain and domain.strip()
+        }
+        source_guardrails = self.spec.get("research", {}).get("source_guardrails", {})
+        self.source_min_score_keep = int(source_guardrails.get("min_score_keep", 3))
+        self.source_max_results_per_query = int(source_guardrails.get("max_results_per_query", 5))
         llm_conf = self.spec.get("llm", {})
         temperatures = llm_conf.get("temperature", self.spec.get("ollama", {}).get("temperature", {}))
         timeouts = llm_conf.get("timeout", self.spec.get("ollama", {}).get("timeout", {}))
         self.temp = temperatures["researcher"]
         self.timeout = timeouts.get("researcher", timeouts.get("default", 300))
 
-    def log_url_found(self, url: str, title: str = "", status: str = "", elapsed: float | None = None):
+    def log_url_found(
+        self,
+        url: str,
+        title: str = "",
+        status: str = "",
+        elapsed: float | None = None,
+        source: str = "",
+        scrape_status: str = "",
+    ):
         if self.pipeline_logger:
-            self.pipeline_logger.found_url(url, title=title, status=status, elapsed=elapsed)
+            self.pipeline_logger.found_url(
+                url,
+                title=title,
+                status=status,
+                elapsed=elapsed,
+                source=source,
+                scrape_status=scrape_status,
+            )
             return
         self.event_log.log_event("url_found", {
             "url": url,
             "title": title,
             "status": status,
             "elapsed_seconds": elapsed,
+            "source": source,
+            "scrape_status": scrape_status,
         })
 
     def run(self, tool, alternative="", foco="comparação geral", questoes=None):
@@ -211,10 +355,22 @@ class ResearcherSkill:
 
         results_by_query = self.search.search_multi(queries)
         logger.debug(f"Got search results for {len(results_by_query)} queries")
-        
-        self.search.save_urls(results_by_query, f"output/urls_{tool}.txt")
 
-        context = self.build_context(results_by_query)
+        filtered_results_by_query = self.filter_search_results(
+            results_by_query=results_by_query,
+            tool=tool,
+            alternative=alternative,
+        )
+        filtered_out_count = self.count_results(results_by_query) - self.count_results(filtered_results_by_query)
+        if filtered_out_count > 0:
+            logger.info(
+                "Search guardrail filtered %d URL(s) for non-relevant/video/social domains",
+                filtered_out_count,
+            )
+
+        self.search.save_urls(filtered_results_by_query, f"output/urls_{tool}.txt")
+
+        context = self.build_context(filtered_results_by_query)
         logger.debug(f"Context built: {len(context)} chars, scrape_stats: {self.last_scrape_stats}")
         
         lessons = self.memory.get_lessons_for_prompt()
@@ -348,7 +504,7 @@ Produza o relatório:
                 url = result_item.get("url", "")
                 if not url.startswith("http") or url in seen_urls:
                     continue
-                if any(domain in url for domain in SKIP_DOMAINS):
+                if self.should_skip_url(url):
                     self.log_url_found(url, status="skipped")
                     continue
                 seen_urls.add(url)
@@ -375,7 +531,14 @@ Produza o relatório:
                     lines.append(f"Conteúdo Extraído:\n{text}")
                     lines.append("---")
                     title = text.split('\n')[0][:40] if text else ""
-                    self.log_url_found(url, title=title, status="ok", elapsed=scrape_elapsed)
+                    self.log_url_found(
+                        url,
+                        title=title,
+                        status="ok",
+                        elapsed=scrape_elapsed,
+                        source=result.get("source", ""),
+                        scrape_status=result.get("status", ""),
+                    )
                 else:
                     scrape_fail += 1
                     self.memory.log_event("scrape_failed", {
@@ -392,6 +555,8 @@ Produza o relatório:
                         title=f"[{result['status']}]",
                         status="scrape_failed",
                         elapsed=scrape_elapsed,
+                        source=result.get("source", ""),
+                        scrape_status=result.get("status", ""),
                     )
 
         self.last_scrape_stats = {
@@ -400,3 +565,186 @@ Produza o relatório:
             "skipped": len(seen_urls) - total_scrapes,
         }
         return "\n".join(lines)
+
+    def filter_search_results(
+        self,
+        results_by_query: dict[str, list[dict]],
+        tool: str,
+        alternative: str,
+    ) -> dict[str, list[dict]]:
+        relevance_keywords = self.build_relevance_keywords(tool, alternative)
+        tool_identity_terms = self.build_tool_identity_terms(tool)
+        filtered_results_by_query: dict[str, list[dict]] = {}
+        for query, results in results_by_query.items():
+            scored_results = []
+            for result_item in results:
+                url = result_item.get("url", "")
+                if self.should_skip_url(url):
+                    continue
+                if not self.is_result_relevant(
+                    result_item=result_item,
+                    relevance_keywords=relevance_keywords,
+                    tool_identity_terms=tool_identity_terms,
+                ):
+                    continue
+                source_score = self.compute_source_score(
+                    result_item=result_item,
+                    relevance_keywords=relevance_keywords,
+                    tool_identity_terms=tool_identity_terms,
+                )
+                if source_score < self.source_min_score_keep:
+                    continue
+                scored_results.append((source_score, result_item))
+
+            scored_results.sort(key=lambda score_and_result: score_and_result[0], reverse=True)
+            filtered_results_by_query[query] = [
+                result_item
+                for source_score, result_item in scored_results[: self.source_max_results_per_query]
+            ]
+        return filtered_results_by_query
+
+    def build_relevance_keywords(self, tool: str, alternative: str) -> set[str]:
+        raw_terms = [tool or "", alternative or ""]
+        split_terms = []
+        for term in raw_terms:
+            split_terms.extend(re.split(r"[^a-zA-Z0-9]+", term.lower()))
+        return {
+            term
+            for term in split_terms
+            if len(term) >= 3 and term not in GENERIC_KEYWORD_TERMS
+        }
+
+    def build_tool_identity_terms(self, tool: str) -> set[str]:
+        normalized_tool = (tool or "").lower().strip()
+        tool_terms = {normalized_tool} if normalized_tool else set()
+        split_terms = re.split(r"[^a-zA-Z0-9]+", normalized_tool)
+        tool_terms.update(
+            term for term in split_terms if len(term) >= 4 and term not in GENERIC_KEYWORD_TERMS
+        )
+        return {term for term in tool_terms if term}
+
+    def is_result_relevant(
+        self,
+        result_item: dict,
+        relevance_keywords: set[str],
+        tool_identity_terms: set[str],
+    ) -> bool:
+        url = (result_item.get("url", "") or "").lower()
+        parsed_url = urlparse(url)
+        host = parsed_url.netloc
+        title = (result_item.get("title", "") or "").lower()
+        snippet = (result_item.get("snippet", "") or "").lower()
+        combined_text = f"{url} {title} {snippet}"
+
+        if self.is_qna_host(host):
+            return self.has_tool_identity_match(combined_text, tool_identity_terms)
+
+        if any(
+            host == trusted_domain or host.endswith(f".{trusted_domain}")
+            for trusted_domain in TRUSTED_TECH_DOMAINS
+        ):
+            return self.has_tool_identity_match(combined_text, tool_identity_terms)
+
+        if not relevance_keywords:
+            return self.has_tool_identity_match(combined_text, tool_identity_terms)
+
+        return any(keyword in combined_text for keyword in relevance_keywords)
+
+    def compute_source_score(
+        self,
+        result_item: dict,
+        relevance_keywords: set[str],
+        tool_identity_terms: set[str],
+    ) -> int:
+        url = (result_item.get("url", "") or "").lower()
+        title = (result_item.get("title", "") or "").lower()
+        snippet = (result_item.get("snippet", "") or "").lower()
+        combined_text = f"{url} {title} {snippet}"
+        parsed_url = urlparse(url)
+        host = parsed_url.netloc
+
+        source_score = 0
+
+        if self.is_high_trust_host(host):
+            source_score += 5
+        elif self.is_medium_trust_host(host):
+            source_score += 2
+        elif self.is_qna_host(host):
+            source_score += 1
+
+        keyword_matches = sum(1 for keyword in relevance_keywords if keyword in combined_text)
+        source_score += min(3, keyword_matches)
+
+        if self.has_tool_identity_match(combined_text, tool_identity_terms):
+            source_score += 3
+
+        evidence_matches = sum(1 for term in TECH_EVIDENCE_TERMS if term in combined_text)
+        source_score += min(3, evidence_matches)
+
+        if self.is_low_signal_host(host):
+            source_score -= 4
+        if "sponsored" in combined_text or "affiliate" in combined_text:
+            source_score -= 2
+
+        return source_score
+
+    def is_high_trust_host(self, host: str) -> bool:
+        if any(
+            host == trusted_domain or host.endswith(f".{trusted_domain}")
+            for trusted_domain in TRUSTED_TECH_DOMAINS
+        ):
+            return True
+        if any(host.startswith(prefix) for prefix in HIGH_TRUST_DOMAIN_HINTS):
+            return True
+        return False
+
+    def is_medium_trust_host(self, host: str) -> bool:
+        return any(
+            host == medium_domain or host.endswith(f".{medium_domain}")
+            for medium_domain in MEDIUM_TRUST_DOMAINS
+        )
+
+    def is_qna_host(self, host: str) -> bool:
+        return any(host == qna_domain or host.endswith(f".{qna_domain}") for qna_domain in QNA_DOMAINS)
+
+    def has_tool_identity_match(self, combined_text: str, tool_identity_terms: set[str]) -> bool:
+        if not tool_identity_terms:
+            return False
+        return any(tool_term in combined_text for tool_term in tool_identity_terms)
+
+    def is_low_signal_host(self, host: str) -> bool:
+        return any(
+            host == low_signal_domain or host.endswith(f".{low_signal_domain}")
+            for low_signal_domain in LOW_SIGNAL_DOMAINS
+        )
+
+    def should_skip_url(self, url: str) -> bool:
+        if not url or not url.startswith("http"):
+            return True
+
+        parsed_url = urlparse(url.lower())
+        host = parsed_url.netloc
+        path = parsed_url.path or ""
+
+        if any(
+            host == blocked_domain or host.endswith(f".{blocked_domain}")
+            for blocked_domain in self.skip_domains
+        ):
+            return True
+
+        if any(path.endswith(extension) for extension in NON_TEXT_EXTENSIONS):
+            return True
+
+        if any(marker in path for marker in NON_TEXT_PATH_MARKERS):
+            return True
+
+        if self.is_low_signal_host(host):
+            return True
+
+        if any(marker in path for marker in LOW_SIGNAL_PATH_MARKERS):
+            return True
+
+        return False
+
+    def count_results(self, results_by_query: dict[str, list[dict]]) -> int:
+        return sum(len(results) for results in results_by_query.values())

@@ -1,5 +1,6 @@
 import yaml
 import logging
+import re
 from pathlib import Path
 from validators.spec_validator import SpecValidator
 
@@ -101,7 +102,13 @@ Liste APENAS problemas factuais óbvios:
 - Contradição interna entre seções
 - Import ou path de código que não existe
 
-Responda APENAS com lista numerada de problemas encontrados.
+Formato obrigatório de resposta:
+1. TRECHO: "<citação literal exata do artigo>" | PROBLEMA: <explicação objetiva>
+2. TRECHO: "<citação literal exata do artigo>" | PROBLEMA: <explicação objetiva>
+
+Regras:
+- Só reporte se houver TRECHO literal presente no ARTIGO.
+- Se não houver evidência textual, NÃO reporte.
 Se não encontrar problemas, responda exatamente: SEM PROBLEMAS
 
 ARTIGO:
@@ -117,8 +124,32 @@ ARTIGO:
         text = resp.response.strip()
         if "SEM PROBLEMAS" in text.upper():
             return []
-        return [
-            line.strip()
-            for line in text.split("\n")
-            if line.strip() and line[0].isdigit()
-        ]
+        return self.extract_evidence_based_issues(text, artigo[:4000])
+
+    def extract_evidence_based_issues(self, critic_output: str, article_excerpt: str) -> list[str]:
+        issues = []
+        article_lower = article_excerpt.lower()
+
+        for response_line in critic_output.split("\n"):
+            line = response_line.strip()
+            if not line or not line[0].isdigit():
+                continue
+
+            match = re.match(
+                r'^\d+\.\s*TRECHO:\s*"(.+?)"\s*\|\s*PROBLEMA:\s*(.+)$',
+                line,
+                flags=re.IGNORECASE,
+            )
+            if not match:
+                continue
+
+            quoted_excerpt = match.group(1).strip()
+            problem_text = match.group(2).strip()
+            if len(quoted_excerpt) < 8 or len(problem_text) < 10:
+                continue
+            if quoted_excerpt.lower() not in article_lower:
+                continue
+
+            issues.append(f'Trecho "{quoted_excerpt}": {problem_text}')
+
+        return issues

@@ -90,6 +90,8 @@ def print_event(event: dict):
         title = event.get("title", "")
         status = event.get("status", "")
         elapsed = event.get("elapsed_seconds", None)
+        source = event.get("source", "")
+        scrape_status = event.get("scrape_status", "")
 
         status_emoji = {
             "ok": "✓",
@@ -99,8 +101,10 @@ def print_event(event: dict):
 
         elapsed_str = f" ({elapsed:.1f}s)" if elapsed else ""
         title_str = f" — {title}" if title else ""
+        source_str = f" [src={source}]" if source else ""
+        scrape_status_str = f" [status={scrape_status}]" if scrape_status and scrape_status != "ok" else ""
 
-        print(f" {status_emoji} {url}{title_str}{elapsed_str}")
+        print(f" {status_emoji} {url}{title_str}{source_str}{scrape_status_str}{elapsed_str}")
 
     elif event_type == "search_query":
         query = event.get("query", "?")
@@ -190,11 +194,27 @@ def stats_summary(events: list):
     urls_ok = sum(1 for event_item in events if event_item.get("type") == "url_found" and event_item.get("status") == "ok")
     urls_failed = sum(1 for event_item in events if event_item.get("type") == "url_found" and event_item.get("status") == "scrape_failed")
     urls_skipped = sum(1 for event_item in events if event_item.get("type") == "url_found" and event_item.get("status") == "skipped")
+    cloudflare_challenges = sum(
+        1
+        for event_item in events
+        if event_item.get("type") == "url_found"
+        and event_item.get("scrape_status") == "cloudflare_challenge"
+    )
+    extracted_via_playwright = sum(
+        1
+        for event_item in events
+        if event_item.get("type") == "url_found"
+        and event_item.get("status") == "ok"
+        and event_item.get("source") == "playwright"
+    )
 
     print(f"\n🔗 URLs encontradas:")
     print(f"  ✓ OK (extraído): {urls_ok}")
     print(f"  ⚠ Falhado (fallback): {urls_failed}")
     print(f"  ⊘ Pulado: {urls_skipped}")
+    print(f"\n🛡️ Telemetria Cloudflare/Browser:")
+    print(f"  ☁️ Challenge detectado: {cloudflare_challenges}")
+    print(f"  🧭 Extraído via Playwright: {extracted_via_playwright}")
 
     elapsed_times = []
     for event_item in events:
@@ -290,6 +310,72 @@ def watch_mode(log_file: str, watch_interval: int, filter_type: str = None, tail
         print("\n\n👋 Modo watch finalizado")
 
 
+def parse_watch_interval(arg: str):
+    if arg == "--watch":
+        return 2
+    if not arg.startswith("--watch="):
+        return None
+    try:
+        return int(arg.split("=")[1])
+    except ValueError:
+        print(f"❌ Intervalo inválido: {arg}")
+        return "invalid"
+
+
+def parse_tail_value(arg: str):
+    if not arg.startswith("--tail"):
+        return None
+    parts = arg.split("=")
+    if len(parts) == 1:
+        return 20
+    try:
+        return int(parts[1])
+    except ValueError:
+        print(f"❌ Valor inválido para tail: {parts[1]}")
+        return "invalid"
+
+
+def parse_cli_args(args: list[str]):
+    if args and args[0] == "--help":
+        return {"show_help": True}
+
+    parsed = {
+        "log_file": "output/pipeline_events.jsonl",
+        "filter_type": None,
+        "tail": None,
+        "watch_interval": None,
+        "show_help": False,
+    }
+    positional_args = []
+
+    for arg in args:
+        watch_interval = parse_watch_interval(arg)
+        if watch_interval == "invalid":
+            return None
+        if watch_interval is not None:
+            parsed["watch_interval"] = watch_interval
+            continue
+
+        tail_value = parse_tail_value(arg)
+        if tail_value == "invalid":
+            return None
+        if tail_value is not None:
+            parsed["tail"] = tail_value
+            continue
+
+        if not arg.startswith("--"):
+            positional_args.append(arg)
+
+    if positional_args:
+        if parsed["watch_interval"] is None:
+            parsed["filter_type"] = positional_args[0]
+        elif len(positional_args) > 1:
+            parsed["filter_type"] = positional_args[1]
+        else:
+            parsed["filter_type"] = positional_args[0]
+    return parsed
+
+
 def main():
     """Entry point for watch_events.py script.
     
@@ -304,53 +390,36 @@ def main():
         python3 watch_events.py --watch url_found  # Watch with filter
         python3 watch_events.py --help       # Show usage
     """
-    if len(sys.argv) > 1 and sys.argv[1] == "--help":
+    parsed_args = parse_cli_args(sys.argv[1:])
+    if parsed_args is None:
+        return
+
+    if parsed_args["show_help"]:
         print(__doc__)
         return
 
-    log_file = "output/pipeline_events.jsonl"
-    filter_type = None
-    tail = None
-    watch_interval = None
-
-    for i, arg in enumerate(sys.argv[1:], 1):
-        if arg == "--watch":
-            watch_interval = 2
-        elif arg.startswith("--watch="):
-            try:
-                watch_interval = int(arg.split("=")[1])
-            except ValueError:
-                print(f"❌ Intervalo inválido: {arg}")
-                return
-        elif arg.startswith("--tail"):
-            parts = arg.split("=")
-            if len(parts) > 1:
-                try:
-                    tail = int(parts[1])
-                except ValueError:
-                    print(f"❌ Valor inválido para tail: {parts[1]}")
-                    return
-            else:
-                tail = 20
-        elif not arg.startswith("--"):
-            if i == 1 and watch_interval is None:
-                filter_type = arg
-            elif i == 2 and watch_interval is not None:
-                filter_type = arg
-
-    if watch_interval is not None:
-        watch_mode(log_file, watch_interval, filter_type=filter_type, tail=tail)
+    if parsed_args["watch_interval"] is not None:
+        watch_mode(
+            parsed_args["log_file"],
+            parsed_args["watch_interval"],
+            filter_type=parsed_args["filter_type"],
+            tail=parsed_args["tail"],
+        )
         return
 
-    events = read_events(log_file)
+    events = read_events(parsed_args["log_file"])
 
     if not events:
-        print(f"❌ Nenhum evento encontrado em {log_file}")
+        print(f"❌ Nenhum evento encontrado em {parsed_args['log_file']}")
         print(f"   (O pipeline está rodando? Verifique com: python3 main.py ...)")
         return
 
     draw_header()
-    display_events(events, filter_type=filter_type, tail=tail)
+    display_events(
+        events,
+        filter_type=parsed_args["filter_type"],
+        tail=parsed_args["tail"],
+    )
 
 
 if __name__ == "__main__":

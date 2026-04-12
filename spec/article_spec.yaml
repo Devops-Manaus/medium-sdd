@@ -95,15 +95,34 @@ research:
     max_chars_per_page: 4000
     max_scrapes_per_tool: 10
     timeout_seconds: 15
+    compliant_mode: true
+    max_retries: 2
     skip_domains:
       - "youtube.com"
       - "youtu.be"
       - "twitter.com"
       - "x.com"
+      - "t.co"
       - "facebook.com"
+      - "fb.com"
       - "instagram.com"
+      - "threads.net"
       - "tiktok.com"
       - "pinterest.com"
+      - "linkedin.com"
+      - "reddit.com"
+      - "news.ycombinator.com"
+      - "databasemart.com"
+      - "aitooldiscovery.com"
+      - "toolify.ai"
+      - "g2.com"
+      - "saashub.com"
+      - "slashdot.org"
+      - "scribd.com"
+      - "udemy.com"
+  source_guardrails:
+    min_score_keep: 3
+    max_results_per_query: 5
 
 analysis:
   required_fields:
@@ -118,6 +137,7 @@ pipeline:
   # null/descomente para desabilitar limite total.
   timeout_total_seconds: 1800
   max_iterations: 5
+  max_stagnant_iterations: 2
 
 # ── Modelos ──────────────────────────────────────────────────────
 # Fonte principal: .env (LLM_MODEL_RESEARCHER/ANALYST/WRITER/CRITIC)
@@ -125,8 +145,8 @@ pipeline:
 
 # ── Opção 1: OpenRouter free (ATUAL — descomentado) ─────────────
 models:
-  researcher: "nousresearch/hermes-3-llama-3.1-405b:free"
-  analyst: "z-ai/glm-4.5-air:free"
+  researcher: "z-ai/glm-4.5-air:free"
+  analyst: "nousresearch/hermes-3-llama-3.1-405b:free"
   writer: "z-ai/glm-4.5-air:free"
   critic: "nousresearch/hermes-3-llama-3.1-405b:free"
 
@@ -174,6 +194,10 @@ llm:
   context_length:
     default: 8192
     writer: 16384
+  writer_input:
+    max_research_chars: 12000
+    max_analysis_chars: 6000
+    max_correction_chars: 2500
   providers:
     openrouter:
       base_url: "https://openrouter.ai/api/v1"

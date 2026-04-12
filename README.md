@@ -13,7 +13,7 @@ Você informa ferramentas + contexto + perguntas, e o sistema gera um artigo em 
 - Busca dados na web (DuckDuckGo + scraping)
 - Estrutura análise técnica
 - Escreve artigo com template consistente
-- Reprova automaticamente artigo ruim e tenta corrigir (até 3 iterações)
+- Reprova automaticamente artigo ruim e tenta corrigir (até 5 iterações)
 - Salva saídas e métricas em disco
 
 ## Arquitetura rápida
@@ -124,6 +124,40 @@ O CLI pede:
 - perguntas obrigatórias
 - checklist manual
 
+## Comandos rápidos (sem contexto prévio)
+
+### Rodar pipeline (modo padrão)
+
+```bash
+python main.py
+```
+
+### Observabilidade
+
+```bash
+# Ver eventos gerados na execução mais recente
+python watch_events.py
+
+# Ver só os últimos eventos
+python watch_events.py --tail=30
+
+# Acompanhar em tempo real
+python watch_events.py --watch
+```
+
+### Qualidade local (ruff + testes)
+
+```bash
+# Lint focado em problemas reais (unused args/imports/vars)
+uv run ruff check . --select ARG,F401,F841
+
+# Suite completa
+uv run pytest -q
+
+# Gate único (lint + testes)
+uv run ruff check . && uv run pytest -q
+```
+
 ## Saídas geradas
 
 - `artigos/*.md`: artigo final
@@ -169,129 +203,21 @@ artigos/     artigos finais
 2. Trocar para `ollama_local` quando quiser custo zero recorrente
 3. Ajustar `LLM_MODEL_*` por role para qualidade/velocidade
 
-## Testing
-
-This project uses pytest with comprehensive test coverage via spec-driven testing.
-
-### Run All Tests
+## Testes
 
 ```bash
-uv run pytest tests/ -v
-```
+# Suite completa
+uv run pytest -q
 
-### Run Specific Test Suites
-
-```bash
-# Validator unit tests (51 tests)
+# Suite específica
+uv run pytest tests/test_pipeline_e2e.py -v
 uv run pytest tests/test_spec_validator.py -v
 
-# Skills integration tests (28 tests)
-uv run pytest tests/test_skills.py -v
-
-# Pipeline configuration tests (17 tests)
-uv run pytest tests/test_pipeline.py -v
-
-# Spec schema validation tests (16 tests)
-uv run pytest tests/test_spec_schema.py -v
-
-# End-to-end pipeline tests (15 tests)
-uv run pytest tests/test_pipeline_e2e.py -v
-```
-
-### Coverage Report
-
-```bash
+# Cobertura
 uv run pytest --cov=validators --cov=skills --cov=pipeline tests/ --cov-report=term-missing
 ```
 
-### Test Architecture
-
-The test suite is organized into specialized modules:
-
-- **conftest.py** (6 fixtures): Shared fixtures for all tests (validator, spec, valid/invalid articles)
-- **test_spec_validator.py** (51 tests): Unit tests for all 11+ validation rules
-  - Required sections validation (10 sections)
-  - Placeholder pattern detection (18 patterns tested)
-  - Quantitative rules (min references: 3, errors: 2, tips: 3)
-  - Hardware sanity checks (RAM limits)
-  - URL validation (HTTPS-only, no localhost/example.com)
-  - Solution content validation (minimum 20 chars)
-  - Integration and edge cases
-  
-- **test_skills.py** (28 tests): Integration tests for ResearcherSkill, AnalystSkill, WriterSkill, CriticSkill
-  - Field requirement validation
-  - Output structure verification
-  - Error handling and edge cases
-  
-- **test_pipeline.py** (17 tests): Pipeline orchestration and configuration
-  - Timeout enforcement
-  - Max iterations behavior
-  - Configuration loading
-  - State management
-  
-- **test_spec_schema.py** (16 tests): JSON Schema validation
-  - Spec version validation
-  - Required field checks
-  - Configuration structure
-  
-- **test_pipeline_e2e.py** (15 tests): End-to-end validation with feedback loops
-  - Invalid article detection and rejection
-  - Validation result structure (spec_references, corrections)
-  - Feedback clarity and actionability
-  - Multiple failure detection
-  - Valid article approval
-  - Error recovery and iteration
-  - Deterministic vs semantic validation layers
-
-### Test Execution Examples
-
-Run tests with verbose output and stop on first failure:
-
-```bash
-uv run pytest tests/ -v -x
-```
-
-Run tests matching a pattern:
-
-```bash
-uv run pytest tests/ -k "placeholder" -v
-```
-
-Run tests with detailed failure information:
-
-```bash
-uv run pytest tests/ -v --tb=long
-```
-
-Run tests in parallel (if pytest-xdist installed):
-
-```bash
-uv run pip install pytest-xdist
-uv run pytest tests/ -n auto -v
-```
-
-### Coverage Targets
-
-Current coverage: **127 tests passing**
-
-- `validators/spec_validator.py`: **87%** coverage ✅
-- `skills/critic.py`: **80%** coverage ✅
-- `pipeline.py`: **70%** coverage ✅
-
-### What's Tested
-
-✅ All 10 required article sections  
-✅ All 18+ placeholder patterns  
-✅ Minimum references (3), errors (2), tips (3)  
-✅ Hardware sanity checks (RAM limits)  
-✅ URL validation (https-only, no localhost/example.com)  
-✅ Solution content validation (min 20 chars)  
-✅ Spec configuration loading and versioning  
-✅ Pipeline timeout enforcement  
-✅ Skills field requirements  
-✅ Enhanced ValidationResult with spec_references and corrections  
-✅ Feedback loop integration with LLM  
-✅ Deterministic and semantic validation layers
+Atualmente o projeto está com **139 testes passando**.
 
 ### Spec Versioning
 
@@ -306,5 +232,4 @@ head -20 spec/article_spec.yaml
 ```
 
 See `docs/spec-implementation-mapping.md` for complete rule-to-code mapping.
-
 

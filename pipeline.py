@@ -57,6 +57,11 @@ class SDDPipeline:
             self.max_iterations = max(1, int(raw_max_iterations))
         except (TypeError, ValueError):
             self.max_iterations = self.MAX_ITERATIONS
+        raw_max_stagnant_iterations = pipeline_conf.get("max_stagnant_iterations", 2)
+        try:
+            self.max_stagnant_iterations = max(1, int(raw_max_stagnant_iterations))
+        except (TypeError, ValueError):
+            self.max_stagnant_iterations = 2
 
         # lê config do scraper do spec
         scraper_conf = self.spec.get("research", {}).get("scraper", {})
@@ -64,6 +69,8 @@ class SDDPipeline:
         scraper_tool = ScraperTool(
             max_chars=scraper_conf.get("max_chars_per_page", 4000),
             timeout=scraper_conf.get("timeout_seconds", 15),
+            compliant_mode=scraper_conf.get("compliant_mode", True),
+            max_retries=scraper_conf.get("max_retries", 2),
         )
 
         self.researcher = ResearcherSkill(
@@ -87,191 +94,43 @@ class SDDPipeline:
         foco:        str = "comparação geral",
         questoes:    list[str] | None = None,
     ) -> str:
-
         questoes = questoes or []
         started_at = monotonic()
         article = ""
         iteration = 0
         evaluation = {"approved": False, "problems": [], "correction_prompt": ""}
 
-        self.log.pipeline_start(ferramentas, contexto)
-        if self.log.verbosity == "detailed":
-            self.log.console.print(
-                f"   [dim]Foco: {foco} | "
-                f"Perguntas: {len(questoes)}[/dim]\n"
-            )
+        self.initialize_run_context(ferramentas, contexto, foco, questoes)
 
-        self.memory.set("ferramentas", ferramentas)
-        self.memory.set("contexto", contexto)
-        self.memory.set("foco", foco)
-        self.memory.set("questoes", questoes)
-        self.memory.log_event("pipeline_start", {
-            "ferramentas": ferramentas,
-            "contexto":    contexto,
-            "foco":        foco,
-            "questoes":    questoes,
-        })
-
-        # ---- 1. research ----
-        self.log.section(1, 3, "Pesquisando")
-        tools_list     = self.parse_tools(ferramentas)
-        research_parts = []
-
-        for tool in tools_list:
-            self.enforce_global_timeout(
-                started_at,
-                stage=f"pesquisa ({tool})",
-            )
-            alternative_tool = next((tool_name for tool_name in tools_list if tool_name != tool), "")
-            with self.log.task(f"Pesquisando {tool}"):
-                try:
-                    data = self.researcher.run(
-                        tool=tool,
-                        alternative=alternative_tool,
-                        foco=foco,
-                        questoes=questoes,
-                    )
-                except TimeoutException:
-                    self.log.error(
-                        f"Researcher timeout ({self.researcher.timeout}s) — "
-                        f"dados insuficientes para {tool}"
-                    )
-                    data = f"# {tool}\n\nPesquisa interrompida por timeout ({self.researcher.timeout}s)."
-            research_parts.append(f"# {tool}\n{data}")
-
-        research = "\n\n".join(research_parts)
-        self.memory.set("research", research)
-        self.save_debug("research", research)
-
-        # detecta research fraco
-        research_quality = self.assess_research_quality(research)
-        if research_quality == "weak":
-            if self.log.verbosity == "detailed":
-                self.log.console.print(
-                    "   [yellow]⚠ Research fraco — poucos dados concretos encontrados[/yellow]"
-                )
-
-        # ---- 2. analysis ----
-        self.log.section(2, 3, "Analisando")
-        self.enforce_global_timeout(
-            started_at,
-            stage="análise",
-        )
-        with self.log.task("Gerando análise"):
-            try:
-                analysis = self.analyst.run(
-                    research=research,
-                    ferramentas=ferramentas,
-                    contexto=contexto,
-                    foco=foco,
-                    questoes=questoes,
-                )
-            except TimeoutException:
-                self.log.error(
-                    f"Analyst timeout ({self.analyst.timeout}s) — usando research bruto"
-                )
-                analysis = f"Análise interrompida por timeout ({self.analyst.timeout}s).\n\n{research}"
-
-        self.memory.set("analysis", analysis)
-        self.save_debug("analysis", analysis)
-
-        # ---- 3. write + critic loop ----
-        self.log.section(3, 3, "Escrevendo")
-
-        lessons = self.memory.get_lessons_for_prompt()
-        if lessons:
-            lesson_line = next(
-                (lesson for lesson in lessons.splitlines() if lesson.startswith("-")),
-                lessons.splitlines()[0],
-            )
-            self.log.memory_hit(lesson_line)
-
-        correction_instructions = ""
         try:
-            for iteration in range(1, self.max_iterations + 1):
-                self.enforce_global_timeout(
-                    started_at,
-                    stage=f"iteração {iteration} (writer)",
-                )
-                self.log.iteration(iteration, self.max_iterations)
+            research = self.run_research_stage(
+                ferramentas=ferramentas,
+                foco=foco,
+                questoes=questoes,
+                started_at=started_at,
+            )
+            research_quality = self.assess_research_quality(research)
+            self.log_weak_research_warning(research_quality)
 
-                with self.log.task("Escrevendo artigo"):
-                    try:
-                        article = self.writer.run(
-                            research=research,
-                            analysis=analysis,
-                            ferramentas=ferramentas,
-                            contexto=contexto,
-                            foco=foco,
-                            questoes=questoes,
-                            correction_instructions=correction_instructions,
-                            research_quality=research_quality,
-                        )
-                    except TimeoutException:
-                        self.log.error(
-                            f"Writer timeout ({self.writer.timeout}s) na iteração {iteration}"
-                        )
-                        if iteration == self.max_iterations:
-                            article = f"# Timeout\n\nGeração interrompida: writer excedeu {self.writer.timeout}s."
-                            break
-                        continue
+            analysis = self.run_analysis_stage(
+                research=research,
+                ferramentas=ferramentas,
+                contexto=contexto,
+                foco=foco,
+                questoes=questoes,
+                started_at=started_at,
+            )
 
-                # pós-processamento: remove frases proibidas que o modelo insiste
-                article = self.sanitize_article(article)
-
-                self.enforce_global_timeout(
-                    started_at,
-                    stage=f"iteração {iteration} (critic)",
-                )
-                with self.log.task("Validando contra spec"):
-                    try:
-                        evaluation = self.critic.evaluate(article, ferramentas)
-                    except TimeoutException:
-                        self.log.error(
-                            f"Critic timeout ({self.critic.timeout}s) — aprovando sem validação semântica"
-                        )
-                        evaluation = {
-                            "approved": True,
-                            "layer": "timeout_skip",
-                            "warnings": [f"Validação semântica pulada: critic excedeu {self.critic.timeout}s"],
-                            "report": "Validação semântica pulada por timeout.",
-                        }
-
-                # mostra resultado da validação
-                if evaluation["approved"]:
-                    self.log.critic_passed(
-                        evaluation.get("layer", ""),
-                        evaluation.get("warnings", []),
-                    )
-                    self.memory.log_event("article_approved", {
-                        "iteration":   iteration,
-                        "ferramentas": ferramentas,
-                        "foco":        foco,
-                    })
-                    if iteration > 1:
-                        # extrai os problemas reais, sem o header genérico
-                        problems = [
-                            line.strip()
-                            for line in correction_instructions.splitlines()
-                            if line.strip() and line.strip()[0].isdigit()
-                        ]
-                        pattern = "; ".join(problems)[:150] if problems else correction_instructions[:150]
-                        self.memory.learn(
-                            problem_pattern=pattern,
-                            solution=f"Resolvido em {iteration} iterações",
-                            context=f"{ferramentas} | foco: {foco}",
-                        )
-                    break
-
-                self.log.critic_failed(evaluation.get("problems", []))
-                correction_instructions = evaluation.get("correction_prompt", "")
-
-                if iteration == self.max_iterations:
-                    self.log.error("Máximo de iterações atingido. Salvando melhor versão.")
-                    self.memory.log_event("max_iterations_reached", {
-                        "ferramentas": ferramentas,
-                        "problems":    evaluation.get("problems", []),
-                    })
+            article, iteration, evaluation = self.run_write_critic_stage(
+                research=research,
+                analysis=analysis,
+                ferramentas=ferramentas,
+                contexto=contexto,
+                foco=foco,
+                questoes=questoes,
+                research_quality=research_quality,
+                started_at=started_at,
+            )
         except TimeoutException as exc:
             self.log.error(str(exc))
             self.memory.log_event("pipeline_timeout_total", {
@@ -306,6 +165,308 @@ class SDDPipeline:
 
         self.save_metrics(ferramentas, path, evaluation["approved"], foco)
         return path
+
+    def initialize_run_context(self, ferramentas: str, contexto: str, foco: str, questoes: list[str]):
+        self.log.pipeline_start(ferramentas, contexto)
+        if self.log.verbosity == "detailed":
+            self.log.console.print(
+                f"   [dim]Foco: {foco} | "
+                f"Perguntas: {len(questoes)}[/dim]\n"
+            )
+
+        self.memory.set("ferramentas", ferramentas)
+        self.memory.set("contexto", contexto)
+        self.memory.set("foco", foco)
+        self.memory.set("questoes", questoes)
+        self.memory.log_event("pipeline_start", {
+            "ferramentas": ferramentas,
+            "contexto": contexto,
+            "foco": foco,
+            "questoes": questoes,
+        })
+
+    def run_research_stage(
+        self,
+        ferramentas: str,
+        foco: str,
+        questoes: list[str],
+        started_at: float,
+    ) -> str:
+        self.log.section(1, 3, "Pesquisando")
+        tools_list = self.parse_tools(ferramentas)
+        research_parts = []
+
+        for tool in tools_list:
+            self.enforce_global_timeout(started_at, stage=f"pesquisa ({tool})")
+            alternative_tool = next((tool_name for tool_name in tools_list if tool_name != tool), "")
+            research_parts.append(
+                self.run_research_for_tool(
+                    tool=tool,
+                    alternative_tool=alternative_tool,
+                    foco=foco,
+                    questoes=questoes,
+                )
+            )
+
+        research = "\n\n".join(research_parts)
+        self.memory.set("research", research)
+        self.save_debug("research", research)
+        return research
+
+    def run_research_for_tool(self, tool: str, alternative_tool: str, foco: str, questoes: list[str]) -> str:
+        with self.log.task(f"Pesquisando {tool}"):
+            try:
+                data = self.researcher.run(
+                    tool=tool,
+                    alternative=alternative_tool,
+                    foco=foco,
+                    questoes=questoes,
+                )
+            except TimeoutException:
+                self.log.error(
+                    f"Researcher timeout ({self.researcher.timeout}s) — "
+                    f"dados insuficientes para {tool}"
+                )
+                data = f"# {tool}\n\nPesquisa interrompida por timeout ({self.researcher.timeout}s)."
+        return f"# {tool}\n{data}"
+
+    def log_weak_research_warning(self, research_quality: str):
+        if research_quality != "weak":
+            return
+        if self.log.verbosity == "detailed":
+            self.log.console.print(
+                "   [yellow]⚠ Research fraco — poucos dados concretos encontrados[/yellow]"
+            )
+
+    def run_analysis_stage(
+        self,
+        research: str,
+        ferramentas: str,
+        contexto: str,
+        foco: str,
+        questoes: list[str],
+        started_at: float,
+    ) -> str:
+        self.log.section(2, 3, "Analisando")
+        self.enforce_global_timeout(started_at, stage="análise")
+        with self.log.task("Gerando análise"):
+            try:
+                analysis = self.analyst.run(
+                    research=research,
+                    ferramentas=ferramentas,
+                    contexto=contexto,
+                    foco=foco,
+                    questoes=questoes,
+                )
+            except TimeoutException:
+                self.log.error(
+                    f"Analyst timeout ({self.analyst.timeout}s) — usando research bruto"
+                )
+                analysis = f"Análise interrompida por timeout ({self.analyst.timeout}s).\n\n{research}"
+
+        self.memory.set("analysis", analysis)
+        self.save_debug("analysis", analysis)
+        return analysis
+
+    def run_write_critic_stage(
+        self,
+        research: str,
+        analysis: str,
+        ferramentas: str,
+        contexto: str,
+        foco: str,
+        questoes: list[str],
+        research_quality: str,
+        started_at: float,
+    ) -> tuple[str, int, dict]:
+        self.log.section(3, 3, "Escrevendo")
+        self.log_memory_hit_if_available()
+
+        article = ""
+        evaluation = {"approved": False, "problems": [], "correction_prompt": ""}
+        correction_instructions = ""
+        previous_problem_signature = None
+        stagnant_iterations = 0
+
+        for iteration in range(1, self.max_iterations + 1):
+            self.enforce_global_timeout(started_at, stage=f"iteração {iteration} (writer)")
+            self.log.iteration(iteration, self.max_iterations)
+
+            article = self.run_writer_iteration(
+                iteration=iteration,
+                research=research,
+                analysis=analysis,
+                ferramentas=ferramentas,
+                contexto=contexto,
+                foco=foco,
+                questoes=questoes,
+                correction_instructions=correction_instructions,
+                research_quality=research_quality,
+            )
+            if not article:
+                continue
+
+            article = self.sanitize_article(article)
+            evaluation = self.run_critic_iteration(
+                article=article,
+                ferramentas=ferramentas,
+                started_at=started_at,
+                iteration=iteration,
+            )
+
+            if evaluation["approved"]:
+                self.handle_approved_article(iteration, evaluation, correction_instructions, ferramentas, foco)
+                return article, iteration, evaluation
+
+            self.log.critic_failed(evaluation.get("problems", []))
+            correction_instructions = evaluation.get("correction_prompt", "")
+            previous_problem_signature, stagnant_iterations = self.update_stagnation_state(
+                evaluation=evaluation,
+                previous_problem_signature=previous_problem_signature,
+                stagnant_iterations=stagnant_iterations,
+            )
+            if self.should_stop_for_stagnation(stagnant_iterations, iteration, ferramentas, evaluation):
+                break
+            if iteration == self.max_iterations:
+                self.log.error("Máximo de iterações atingido. Salvando melhor versão.")
+                self.memory.log_event("max_iterations_reached", {
+                    "ferramentas": ferramentas,
+                    "problems": evaluation.get("problems", []),
+                })
+        return article, iteration, evaluation
+
+    def log_memory_hit_if_available(self):
+        lessons = self.memory.get_lessons_for_prompt()
+        if not lessons:
+            return
+        lesson_line = next(
+            (lesson for lesson in lessons.splitlines() if lesson.startswith("-")),
+            lessons.splitlines()[0],
+        )
+        self.log.memory_hit(lesson_line)
+
+    def run_writer_iteration(
+        self,
+        iteration: int,
+        research: str,
+        analysis: str,
+        ferramentas: str,
+        contexto: str,
+        foco: str,
+        questoes: list[str],
+        correction_instructions: str,
+        research_quality: str,
+    ) -> str:
+        with self.log.task("Escrevendo artigo"):
+            try:
+                return self.writer.run(
+                    research=research,
+                    analysis=analysis,
+                    ferramentas=ferramentas,
+                    contexto=contexto,
+                    foco=foco,
+                    questoes=questoes,
+                    correction_instructions=correction_instructions,
+                    research_quality=research_quality,
+                )
+            except TimeoutException:
+                self.log.error(
+                    f"Writer timeout ({self.writer.timeout}s) na iteração {iteration}"
+                )
+                if iteration == self.max_iterations:
+                    return f"# Timeout\n\nGeração interrompida: writer excedeu {self.writer.timeout}s."
+                return ""
+
+    def run_critic_iteration(
+        self,
+        article: str,
+        ferramentas: str,
+        started_at: float,
+        iteration: int,
+    ) -> dict:
+        self.enforce_global_timeout(started_at, stage=f"iteração {iteration} (critic)")
+        with self.log.task("Validando contra spec"):
+            try:
+                return self.critic.evaluate(article, ferramentas)
+            except TimeoutException:
+                self.log.error(
+                    f"Critic timeout ({self.critic.timeout}s) — aprovando sem validação semântica"
+                )
+                return {
+                    "approved": True,
+                    "layer": "timeout_skip",
+                    "warnings": [f"Validação semântica pulada: critic excedeu {self.critic.timeout}s"],
+                    "report": "Validação semântica pulada por timeout.",
+                }
+
+    def handle_approved_article(
+        self,
+        iteration: int,
+        evaluation: dict,
+        correction_instructions: str,
+        ferramentas: str,
+        foco: str,
+    ):
+        self.log.critic_passed(
+            evaluation.get("layer", ""),
+            evaluation.get("warnings", []),
+        )
+        self.memory.log_event("article_approved", {
+            "iteration": iteration,
+            "ferramentas": ferramentas,
+            "foco": foco,
+        })
+        if iteration <= 1:
+            return
+        pattern = self.extract_correction_pattern(correction_instructions)
+        self.memory.learn(
+            problem_pattern=pattern,
+            solution=f"Resolvido em {iteration} iterações",
+            context=f"{ferramentas} | foco: {foco}",
+        )
+
+    def extract_correction_pattern(self, correction_instructions: str) -> str:
+        problems = [
+            line.strip()
+            for line in correction_instructions.splitlines()
+            if line.strip() and line.strip()[0].isdigit()
+        ]
+        return "; ".join(problems)[:150] if problems else correction_instructions[:150]
+
+    def update_stagnation_state(
+        self,
+        evaluation: dict,
+        previous_problem_signature: tuple[str, ...] | None,
+        stagnant_iterations: int,
+    ) -> tuple[tuple[str, ...] | None, int]:
+        current_problem_signature = self.normalize_problem_signature(
+            evaluation.get("problems", [])
+        )
+        if current_problem_signature and current_problem_signature == previous_problem_signature:
+            stagnant_iterations += 1
+        else:
+            stagnant_iterations = 0
+        return current_problem_signature, stagnant_iterations
+
+    def should_stop_for_stagnation(
+        self,
+        stagnant_iterations: int,
+        iteration: int,
+        ferramentas: str,
+        evaluation: dict,
+    ) -> bool:
+        if stagnant_iterations < self.max_stagnant_iterations:
+            return False
+        self.log.error(
+            "Sem progresso no critic após múltiplas iterações. Encerrando para evitar loop."
+        )
+        self.memory.log_event("critic_stagnation_break", {
+            "ferramentas": ferramentas,
+            "iteration": iteration,
+            "stagnant_iterations": stagnant_iterations,
+            "problems": evaluation.get("problems", []),
+        })
+        return True
 
     def parse_tools(self, ferramentas: str) -> list[str]:
         return [
@@ -369,7 +530,53 @@ class SDDPipeline:
         for block_pattern in url_rules.get("block_patterns", []):
             result = re.sub(rf'https?://[^\s]*{re.escape(block_pattern)}[^\s]*', '', result)
 
-        return result
+        return self.handle_incomplete_commands(result)
+
+    def handle_incomplete_commands(self, article: str) -> str:
+        import re
+
+        updated_lines: list[str] = []
+        has_endpoint_research_note = False
+        has_curl_research_note = False
+        has_queue_research_note = False
+
+        for line in article.splitlines():
+            updated_line = line
+            stripped_line = updated_line.strip()
+
+            if re.search(r'--endpoint-url=\s*(?:$|--)', stripped_line):
+                updated_line = ""
+                has_endpoint_research_note = True
+
+            if re.fullmatch(r'curl(?:\s+[-\w]+(?:\s+\S+)*)?\s*', stripped_line) and not re.search(
+                r'https?://', stripped_line
+            ):
+                updated_line = ""
+                has_curl_research_note = True
+
+            if 'QueueUrl": " }' in updated_line:
+                updated_line = "Resultado esperado: retorno com campo `QueueUrl` válido."
+                has_queue_research_note = True
+
+            if updated_line:
+                updated_lines.append(updated_line)
+
+        if has_endpoint_research_note:
+            updated_lines.append(
+                "Nota: endpoint de serviço não confirmado nas fontes coletadas; "
+                "validação manual é necessária com pesquisa adicional."
+            )
+        if has_curl_research_note:
+            updated_lines.append(
+                "Nota: comando curl removido por falta de URL confirmada nas fontes; "
+                "validação manual é necessária com pesquisa adicional."
+            )
+        if has_queue_research_note:
+            updated_lines.append(
+                "Nota: exemplo de QueueUrl foi normalizado; valide o payload real manualmente."
+            )
+
+        return "\n".join(updated_lines)
 
     def save_debug(self, stage: str, content: str):
         Path(f"output/debug_{stage}.md").write_text(content, encoding="utf-8")
@@ -396,3 +603,14 @@ class SDDPipeline:
             "Pipeline timeout total excedido "
             f"({elapsed:.1f}s > {self.timeout_total_seconds}s) durante {stage}"
         )
+
+    def normalize_problem_signature(self, problems: list[str]) -> tuple[str, ...]:
+        import re
+
+        normalized_items = []
+        for problem_text in problems:
+            normalized_text = re.sub(r'^\d+\.\s*', '', problem_text.lower().strip())
+            normalized_text = re.sub(r'\s+', ' ', normalized_text)
+            if normalized_text:
+                normalized_items.append(normalized_text)
+        return tuple(sorted(normalized_items))

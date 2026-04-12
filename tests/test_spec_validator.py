@@ -528,6 +528,34 @@ class TestSpecValidatorCodeBlocks:
         assert len(code_warnings) == 0
 
 
+class TestSpecValidatorCommandIntegrity:
+    """Command-level guardrails for incomplete snippets."""
+
+    def test_endpoint_url_empty_fails(self, validator, valid_article):
+        article = valid_article.replace(
+            "curl -sfL https://get.k3s.io | sh -",
+            "aws s3 mb s3://meu-bucket --endpoint-url= --profile ministack",
+        )
+        result = validator.validate(article)
+        assert not result.passed
+        assert any("endpoint-url vazio" in problem_text.lower() for problem_text in result.problems)
+
+    def test_curl_without_url_fails(self, validator, valid_article):
+        article = valid_article.replace(
+            "curl -sfL https://get.k3s.io | sh -",
+            "curl",
+        )
+        result = validator.validate(article)
+        assert not result.passed
+        assert any("curl sem url" in problem_text.lower() for problem_text in result.problems)
+
+    def test_queue_url_placeholder_fails(self, validator, valid_article):
+        article = valid_article + '\nResultado esperado: `{ "QueueUrl": " }`'
+        result = validator.validate(article)
+        assert not result.passed
+        assert any("queueurl vazio" in problem_text.lower() for problem_text in result.problems)
+
+
 class TestSpecValidatorIntegration:
     """Integration tests combining multiple validation rules"""
 
