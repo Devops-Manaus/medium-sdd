@@ -25,7 +25,7 @@ class SDDPipeline:
         self.log       = PipelineLogger()
         self.memory    = MemoryStore()
 
-        # lê config do scraper do spec
+        # read scraper config from spec
         scraper_conf = self.spec.get("research", {}).get("scraper", {})
         search_tool  = SearchTool()
         scraper_tool = ScraperTool(
@@ -39,38 +39,38 @@ class SDDPipeline:
         self.critic     = CriticSkill(self.memory, spec_path)
 
         os.makedirs("output", exist_ok=True)
-        os.makedirs("artigos", exist_ok=True)
+        os.makedirs("articles", exist_ok=True)
 
     def run(
         self,
-        ferramentas: str,
-        contexto:    str,
-        foco:        str = "comparação geral",
-        questoes:    list[str] | None = None,
+        tools: str,
+        context:    str,
+        focus:        str = "general comparison",
+        questions:    list[str] | None = None,
     ) -> str:
 
-        questoes = questoes or []
+        questions = questions or []
 
-        self.log.pipeline_start(ferramentas, contexto)
+        self.log.pipeline_start(tools, context)
         self.log.console.print(
-            f"   [dim]Foco: {foco} | "
-            f"Perguntas: {len(questoes)}[/dim]\n"
+            f"   [dim]Focus: {focus} | "
+            f"Questions: {len(questions)}[/dim]\n"
         )
 
-        self.memory.set("ferramentas", ferramentas)
-        self.memory.set("contexto", contexto)
-        self.memory.set("foco", foco)
-        self.memory.set("questoes", questoes)
+        self.memory.set("tools", tools)
+        self.memory.set("context", context)
+        self.memory.set("focus", focus)
+        self.memory.set("questions", questions)
         self.memory.log_event("pipeline_start", {
-            "ferramentas": ferramentas,
-            "contexto":    contexto,
-            "foco":        foco,
-            "questoes":    questoes,
+            "tools": tools,
+            "context":    context,
+            "focus":        focus,
+            "questions":    questions,
         })
 
         # ---- 1. research ----
-        self.log.section(1, 3, "Pesquisando")
-        tools_list     = self._parse_tools(ferramentas)
+        self.log.section(1, 3, "Researching")
+        tools_list     = self._parse_tools(tools)
         research_parts = []
 
         timeouts = self.spec["ollama"].get("timeout", {})
@@ -78,55 +78,55 @@ class SDDPipeline:
 
         for tool in tools_list:
             alt = next((t for t in tools_list if t != tool), "")
-            with self.log.task(f"Pesquisando {tool}"):
+            with self.log.task(f"Researching {tool}"):
                 try:
                     data = self.researcher.run(
                         tool=tool,
                         alternative=alt,
-                        foco=foco,
-                        questoes=questoes,
+                        focus=focus,
+                        questions=questions,
                     )
                 except TimeoutException:
                     self.log.error(
                         f"Researcher timeout ({self.researcher.timeout}s) — "
-                        f"dados insuficientes para {tool}"
+                        f"insufficient data for {tool}"
                     )
-                    data = f"# {tool}\n\nPesquisa interrompida por timeout ({self.researcher.timeout}s)."
+                    data = f"# {tool}\n\nResearch interrupted by timeout ({self.researcher.timeout}s)."
             research_parts.append(f"# {tool}\n{data}")
 
         research = "\n\n".join(research_parts)
         self.memory.set("research", research)
         self._save_debug("research", research)
 
-        # detecta research fraco
+        # detect weak research
         research_quality = self._assess_research_quality(research)
         if research_quality == "weak":
             self.log.console.print(
-                "   [yellow]⚠ Research fraco — poucos dados concretos encontrados[/yellow]"
+                "   [yellow]⚠ Weak research — few concrete data found[/yellow]"
             )
 
         # ---- 2. analysis ----
-        self.log.section(2, 3, "Analisando")
-        with self.log.task("Gerando análise"):
+        self.log.section(2, 3, "Analyzing")
+        with self.log.task("Generating analysis"):
             try:
                 analysis = self.analyst.run(
                     research=research,
-                    ferramentas=ferramentas,
-                    contexto=contexto,
-                    foco=foco,
-                    questoes=questoes,
+                    tools=tools,
+                    context=context,
+                    focus=focus,
+                    questions=questions,
                 )
             except TimeoutException:
                 self.log.error(
-                    f"Analyst timeout ({self.analyst.timeout}s) — usando research bruto"
+                    f"Analyst timeout ({self.analyst.timeout}s) — using raw research"
                 )
-                analysis = f"Análise interrompida por timeout ({self.analyst.timeout}s).\n\n{research}"
+                analysis = f"Analysis interrupted by timeout ({self.analyst.timeout}s).\n\n{research}"
 
         self.memory.set("analysis", analysis)
         self._save_debug("analysis", analysis)
 
         # ---- 3. write + critic loop ----
-        self.log.section(3, 3, "Escrevendo")
+        self.log.section(3, 3, "Writing")
 
         lessons = self.memory.get_lessons_for_prompt()
         if lessons:
@@ -143,45 +143,45 @@ class SDDPipeline:
         for iteration in range(1, self.MAX_ITERATIONS + 1):
             self.log.iteration(iteration, self.MAX_ITERATIONS)
 
-            with self.log.task("Escrevendo artigo"):
+            with self.log.task("Writing article"):
                 try:
                     article = self.writer.run(
                         research=research,
                         analysis=analysis,
-                        ferramentas=ferramentas,
-                        contexto=contexto,
-                        foco=foco,
-                        questoes=questoes,
+                        tools=tools,
+                        context=context,
+                        focus=focus,
+                        questions=questions,
                         correction_instructions=correction_instructions,
                         research_quality=research_quality,
                     )
                 except TimeoutException:
                     self.log.error(
-                        f"Writer timeout ({self.writer.timeout}s) na iteração {iteration}"
+                        f"Writer timeout ({self.writer.timeout}s) in iteration {iteration}"
                     )
                     if iteration == self.MAX_ITERATIONS:
-                        article = f"# Timeout\n\nGeração interrompida: writer excedeu {self.writer.timeout}s."
+                        article = f"# Timeout\n\nGeneration interrupted: writer exceeded {self.writer.timeout}s."
                         break
                     continue
 
-            # pós-processamento: remove frases proibidas que o modelo insiste
+            # post-processing: remove forbidden phrases that the model insists on
             article = self._sanitize_article(article)
 
-            with self.log.task("Validando contra spec"):
+            with self.log.task("Validating against spec"):
                 try:
-                    evaluation = self.critic.evaluate(article, ferramentas)
+                    evaluation = self.critic.evaluate(article, tools)
                 except TimeoutException:
                     self.log.error(
-                        f"Critic timeout ({self.critic.timeout}s) — aprovando sem validação semântica"
+                        f"Critic timeout ({self.critic.timeout}s) — approving without semantic validation"
                     )
                     evaluation = {
                         "approved": True,
                         "layer": "timeout_skip",
-                        "warnings": [f"Validação semântica pulada: critic excedeu {self.critic.timeout}s"],
-                        "report": "Validação semântica pulada por timeout.",
+                        "warnings": [f"Semantic validation skipped: critic exceeded {self.critic.timeout}s"],
+                        "report": "Semantic validation skipped due to timeout.",
                     }
 
-            # mostra resultado da validação
+            # show validation result
             if evaluation["approved"]:
                 self.log.critic_passed(
                     evaluation.get("layer", ""),
@@ -189,11 +189,11 @@ class SDDPipeline:
                 )
                 self.memory.log_event("article_approved", {
                     "iteration":   iteration,
-                    "ferramentas": ferramentas,
-                    "foco":        foco,
+                    "tools": tools,
+                    "focus":        focus,
                 })
                 if iteration > 1:
-                    # extrai os problemas reais, sem o header genérico
+                    # extract the real problems, without the generic header
                     problems = [
                         l.strip()
                         for l in correction_instructions.splitlines()
@@ -202,8 +202,8 @@ class SDDPipeline:
                     pattern = "; ".join(problems)[:150] if problems else correction_instructions[:150]
                     self.memory.learn(
                         problem_pattern=pattern,
-                        solution=f"Resolvido em {iteration} iterações",
-                        context=f"{ferramentas} | foco: {foco}",
+                        solution=f"Resolved in {iteration} iterations",
+                        context=f"{tools} | focus: {focus}",
                     )
                 break
 
@@ -211,63 +211,63 @@ class SDDPipeline:
             correction_instructions = evaluation.get("correction_prompt", "")
 
             if iteration == self.MAX_ITERATIONS:
-                self.log.error("Máximo de iterações atingido. Salvando melhor versão.")
+                self.log.error("Maximum iterations reached. Saving best version.")
                 self.memory.log_event("max_iterations_reached", {
-                    "ferramentas": ferramentas,
+                    "tools": tools,
                     "problems":    evaluation.get("problems", []),
                 })
 
         # ---- save ----
-        slug = ferramentas.lower().replace(" ", "-").replace(",", "")[:40]
+        slug = tools.lower().replace(" ", "-").replace(",", "")[:40]
         ts   = datetime.now().strftime("%Y%m%d_%H%M")
-        path = f"artigos/{slug}_{ts}.md"
+        path = f"articles/{slug}_{ts}.md"
 
         Path(path).write_text(article, encoding="utf-8")
 
         metrics = {
-            "ferramentas": ferramentas,
-            "foco":        foco,
-            "perguntas":   len(questoes),
-            "iterações":   iteration,
-            "aprovado":    evaluation["approved"],
+            "tools": tools,
+            "focus":        focus,
+            "questions":   len(questions),
+            "iterations":   iteration,
+            "approved":    evaluation["approved"],
             "output":      path,
         }
         self.log.metrics(metrics)
         self.log.saved(path)
 
-        self._save_metrics(ferramentas, path, evaluation["approved"], foco)
+        self._save_metrics(tools, path, evaluation["approved"], focus)
         return path
 
-    def _parse_tools(self, ferramentas: str) -> list[str]:
+    def _parse_tools(self, tools: str) -> list[str]:
         return [
             t.strip()
-            for t in ferramentas.lower().replace(" e ", ",").split(",")
+            for t in tools.lower().replace(" and ", ",").split(",")
             if t.strip()
         ]
 
     def _assess_research_quality(self, research: str) -> str:
-        """Retorna 'weak' se o research não tem dados suficientes."""
+        """Returns 'weak' if research doesn't have sufficient data."""
         indicators = 0
         lower = research.lower()
-        # tem URLs reais?
+        # has real URLs?
         import re
         urls = re.findall(r'https?://[^\s]+', research)
         if len(urls) >= 5:
             indicators += 1
-        # tem blocos de código?
+        # has code blocks?
         if research.count("```") >= 4:
             indicators += 1
-        # tem conteúdo extraído (não só snippets)?
-        if "conteúdo extraído" in lower or "conteúdo:" in lower:
+        # has extracted content (not just snippets)?
+        if "extracted content" in lower or "content:" in lower:
             indicators += 1
-        # não tem muitos scrape_falhou?
-        fail_count = lower.count("scrape_falhou")
+        # doesn't have many scrape_failed?
+        fail_count = lower.count("scrape_failed")
         if fail_count <= 2:
             indicators += 1
         return "ok" if indicators >= 3 else "weak"
 
     def _sanitize_article(self, article: str) -> str:
-        """Remove frases proibidas que o modelo insiste em usar."""
+        """Remove forbidden phrases that the model insists on using."""
         import re
         patterns = self.spec["article"]["quality_rules"]["no_placeholders"]["patterns"]
 
@@ -288,14 +288,14 @@ class SDDPipeline:
 
         result = "\n".join(cleaned)
 
-        # remove blocos ```bash``` vazios ou com só comentários
+        # remove empty ```bash``` blocks or ones with just comments
         result = re.sub(
             r'```bash\s*\n(\s*#[^\n]*\n)*\s*```',
             '',
             result,
         )
 
-        # remove URLs inventadas
+        # remove invented URLs
         url_rules = self.spec["article"]["quality_rules"].get("url_validation", {})
         for bp in url_rules.get("block_patterns", []):
             result = re.sub(rf'https?://[^\s]*{re.escape(bp)}[^\s]*', '', result)
@@ -305,11 +305,11 @@ class SDDPipeline:
     def _save_debug(self, stage: str, content: str):
         Path(f"output/debug_{stage}.md").write_text(content, encoding="utf-8")
 
-    def _save_metrics(self, ferramentas, path, approved, foco):
+    def _save_metrics(self, tools, path, approved, focus):
         entry = {
             "ts":          datetime.now().isoformat(),
-            "ferramentas": ferramentas,
-            "foco":        foco,
+            "tools": tools,
+            "focus":        focus,
             "output":      path,
             "approved":    approved,
         }

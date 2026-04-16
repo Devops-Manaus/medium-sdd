@@ -16,11 +16,11 @@ class CriticSkill:
         self.llm       = Client(host=self.spec["ollama"]["base_url"], timeout=self.timeout)
         self.validator = SpecValidator(spec_path)
 
-    def evaluate(self, artigo: str, ferramentas: str) -> dict:
-        result = self.validator.validate(artigo)
+    def evaluate(self, article: str, tools: str) -> dict:
+        result = self.validator.validate(article)
 
         self.memory.log_event("critic_ran", {
-            "ferramentas": ferramentas,
+            "tools": tools,
             "passed":      result.passed,
             "problems":    result.problems,
             "warnings":    result.warnings,
@@ -35,13 +35,13 @@ class CriticSkill:
                 "report":            result.report(),
             }
 
-        semantic_issues = self._semantic_check(artigo, ferramentas)
+        semantic_issues = self._semantic_check(article, tools)
 
         if semantic_issues:
             prompt_lines = [
-                "O artigo passou na validação estrutural mas tem problemas semânticos:",
+                "The article passed structural validation but has semantic problems:",
                 *[f"- {s}" for s in semantic_issues],
-                "\nCorrija APENAS esses problemas. Mantenha o resto intacto.",
+                "\nFix ONLY those problems. Keep the rest intact.",
             ]
             return {
                 "approved":          False,
@@ -58,19 +58,19 @@ class CriticSkill:
             "report":   result.report(),
         }
 
-    def _semantic_check(self, artigo: str, ferramentas: str) -> list[str]:
-        prompt = f"""Revise este artigo sobre {ferramentas}.
-Liste APENAS problemas factuais óbvios:
-- Comando que claramente não existe nessa ferramenta
-- Número claramente impossível (ex: "consome 3MB de RAM" para banco de dados)
-- Contradição interna entre seções
-- Import ou path de código que não existe
+    def _semantic_check(self, article: str, tools: str) -> list[str]:
+        prompt = f"""Review this article about {tools}.
+List ONLY obvious factual problems:
+- Command that clearly doesn't exist in that tool
+- Clearly impossible number (ex: "consumes 3MB RAM" for a database)
+- Internal contradiction between sections
+- Import or code path that doesn't exist
 
-Responda APENAS com lista numerada de problemas encontrados.
-Se não encontrar problemas, responda exatamente: SEM PROBLEMAS
+Answer ONLY with numbered list of problems found.
+If you find no problems, answer exactly: NO PROBLEMS
 
-ARTIGO:
-{artigo[:4000]}
+ARTICLE:
+{article[:4000]}
 """
         resp = self.llm.generate(
             model=self.model,
@@ -78,7 +78,7 @@ ARTIGO:
             options={"temperature": self.temp},
         )
         text = resp.response.strip()
-        if "SEM PROBLEMAS" in text.upper():
+        if "NO PROBLEMS" in text.upper():
             return []
         return [
             l.strip()

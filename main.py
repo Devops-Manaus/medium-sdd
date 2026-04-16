@@ -10,58 +10,58 @@ from pipeline import SDDPipeline
 load_dotenv()
 console = Console()
 
-SECOES_PADRAO = [
-    "tldr", "o_que_e", "requisitos", "instalacao",
-    "configuracao", "exemplo_pratico", "armadilhas",
-    "otimizacoes", "conclusao", "referencias",
+DEFAULT_SECTIONS = [
+    "tldr", "what_is", "requirements", "installation",
+    "configuration", "practical_example", "pitfalls",
+    "optimizations", "conclusion", "references",
 ]
 
-FOCOS_DISPONIVEIS = [
-    "comparação geral",
+AVAILABLE_FOCUSES = [
+    "general comparison",
     "performance / throughput",
-    "custo",
-    "migração",
-    "integração",
-    "segurança",
-    "hardware limitado / edge",
-    "quantização / modelos locais",
+    "cost",
+    "migration",
+    "integration",
+    "security",
+    "limited hardware / edge",
+    "quantization / local models",
 ]
 
 
-def perguntar_foco() -> str:
-    console.print("\n[dim]Focos disponíveis:[/dim]")
-    for i, f in enumerate(FOCOS_DISPONIVEIS, 1):
+def ask_focus() -> str:
+    console.print("\n[dim]Available focuses:[/dim]")
+    for i, f in enumerate(AVAILABLE_FOCUSES, 1):
         console.print(f"  [cyan]{i}.[/cyan] {f}")
 
-    escolha = Prompt.ask(
-        "\n[bold]Foco da pesquisa[/bold] [dim](número ou texto livre, enter para padrão)[/dim]",
+    choice = Prompt.ask(
+        "\n[bold]Research focus[/bold] [dim](number or free text, enter for default)[/dim]",
         default="",
     )
 
-    if not escolha.strip():
-        return "comparação geral"
+    if not choice.strip():
+        return "general comparison"
 
-    if escolha.strip().isdigit():
-        idx = int(escolha.strip()) - 1
-        if 0 <= idx < len(FOCOS_DISPONIVEIS):
-            return FOCOS_DISPONIVEIS[idx]
+    if choice.strip().isdigit():
+        idx = int(choice.strip()) - 1
+        if 0 <= idx < len(AVAILABLE_FOCUSES):
+            return AVAILABLE_FOCUSES[idx]
 
-    return escolha.strip()
+    return choice.strip()
 
 
-def perguntar_questoes() -> list[str]:
-    console.print("\n[dim]Digite perguntas que o artigo DEVE responder.")
-    console.print("[dim]Seja específico — o modelo vai usar isso diretamente.")
-    console.print("[dim]Enter vazio para terminar.\n")
-    console.print("[dim]Exemplos:[/dim]")
-    console.print("[dim]  → como configurar modo rootless?[/dim]")
-    console.print("[dim]  → docker-compose funciona sem mudanças?[/dim]")
-    console.print("[dim]  → qual tem menor uso de RAM em idle?[/dim]\n")
+def ask_questions() -> list[str]:
+    console.print("\n[dim]Type questions that the article MUST answer.")
+    console.print("[dim]Be specific — the model will use this directly.")
+    console.print("[dim]Empty enter to finish.\n")
+    console.print("[dim]Examples:[/dim]")
+    console.print("[dim]  → how to configure rootless mode?[/dim]")
+    console.print("[dim]  → does docker-compose work without changes?[/dim]")
+    console.print("[dim]  → which has the lowest RAM usage at idle?[/dim]\n")
 
     items = []
     i = 1
     while True:
-        q = Prompt.ask(f"  [cyan]Pergunta {i}[/cyan]", default="")
+        q = Prompt.ask(f"  [cyan]Question {i}[/cyan]", default="")
         if not q.strip():
             break
         items.append(q.strip())
@@ -69,14 +69,14 @@ def perguntar_questoes() -> list[str]:
     return items
 
 
-def coletar_validacoes() -> list[str]:
-    console.print("\n[dim]Digite critérios que o artigo DEVE conter.")
-    console.print("[dim]Enter vazio para terminar.\n")
+def collect_validations() -> list[str]:
+    console.print("\n[dim]Type criteria that the article MUST contain.")
+    console.print("[dim]Empty enter to finish.\n")
 
     items = []
     i = 1
     while True:
-        v = Prompt.ask(f"  [cyan]Critério {i}[/cyan]", default="")
+        v = Prompt.ask(f"  [cyan]Criterion {i}[/cyan]", default="")
         if not v.strip():
             break
         items.append(v.strip())
@@ -84,86 +84,86 @@ def coletar_validacoes() -> list[str]:
     return items
 
 
-def exibir_resumo(ferramentas, contexto, foco, questoes, validacoes):
+def display_summary(tools, context, focus, questions, validations):
     t = Table(show_header=False, box=None, padding=(0, 2))
     t.add_column(style="dim", width=16)
     t.add_column(style="white")
 
-    t.add_row("Ferramentas", f"[yellow]{ferramentas}[/yellow]")
-    t.add_row("Contexto",    f"[yellow]{contexto}[/yellow]")
-    t.add_row("Foco",        f"[cyan]{foco}[/cyan]")
+    t.add_row("Tools", f"[yellow]{tools}[/yellow]")
+    t.add_row("Context",    f"[yellow]{context}[/yellow]")
+    t.add_row("Focus",        f"[cyan]{focus}[/cyan]")
     t.add_row(
-        "O artigo deve\nresponder",
-        "\n".join(f"→ {q}" for q in questoes) if questoes else "[dim]sem perguntas adicionais[/dim]",
+        "Article should\nanswer",
+        "\n".join(f"→ {q}" for q in questions) if questions else "[dim]no additional questions[/dim]",
     )
     t.add_row(
-        "Validações",
-        "\n".join(f"☐ {v}" for v in validacoes) if validacoes else "[dim]nenhuma[/dim]",
+        "Validations",
+        "\n".join(f"☐ {v}" for v in validations) if validations else "[dim]none[/dim]",
     )
 
     console.print()
-    console.print(Panel(t, title="[bold cyan]Resumo[/bold cyan]", border_style="cyan"))
+    console.print(Panel(t, title="[bold cyan]Summary[/bold cyan]", border_style="cyan"))
     console.print()
 
 
-def checklist_pos_execucao(validacoes: list[str], output_path: str):
-    if not validacoes:
+def post_execution_checklist(validations: list[str], output_path: str):
+    if not validations:
         return
 
     console.print(Panel.fit(
-        "[bold white]Checklist de validação manual[/bold white]",
+        "[bold white]Manual validation checklist[/bold white]",
         border_style="yellow",
     ))
-    console.print(f"[dim]Artigo: {output_path}[/dim]\n")
+    console.print(f"[dim]Article: {output_path}[/dim]\n")
 
-    aprovados = 0
-    for v in validacoes:
+    approved = 0
+    for v in validations:
         ok = Confirm.ask(f"  [white]{v}[/white]")
         if ok:
-            aprovados += 1
+            approved += 1
             console.print("  [green]✓[/green]\n")
         else:
             console.print("  [red]✗[/red]\n")
 
-    total = len(validacoes)
-    cor = "green" if aprovados == total else "yellow" if aprovados > 0 else "red"
-    console.print(f"[{cor}]Resultado: {aprovados}/{total} critérios atendidos[/{cor}]\n")
+    total = len(validations)
+    color = "green" if approved == total else "yellow" if approved > 0 else "red"
+    console.print(f"[{color}]Result: {approved}/{total} criteria met[/{color}]\n")
 
 
 def main():
     console.print()
     console.print(Panel.fit(
         "[bold cyan]SDD Tech Writer[/bold cyan]\n"
-        "[dim]Geração de artigos técnicos com LLM local[/dim]",
+        "[dim]Technical article generation with local LLM[/dim]",
         border_style="cyan",
     ))
     console.print()
 
     try:
-        ferramentas = Prompt.ask("[bold]Ferramentas[/bold] [dim](ex: podman e docker)[/dim]")
-        contexto    = Prompt.ask("[bold]Contexto[/bold]    [dim](ex: ambiente de dev local no Linux)[/dim]")
-        foco        = perguntar_foco()
-        questoes    = perguntar_questoes()
-        validacoes  = coletar_validacoes()
+        tools = Prompt.ask("[bold]Tools[/bold] [dim](ex: podman and docker)[/dim]")
+        context    = Prompt.ask("[bold]Context[/bold]    [dim](ex: local dev environment on Linux)[/dim]")
+        focus        = ask_focus()
+        questions    = ask_questions()
+        validations  = collect_validations()
     except KeyboardInterrupt:
-        console.print("\n[dim]Cancelado.[/dim]")
+        console.print("\n[dim]Cancelled.[/dim]")
         sys.exit(0)
 
-    exibir_resumo(ferramentas, contexto, foco, questoes, validacoes)
+    display_summary(tools, context, focus, questions, validations)
 
-    if not Confirm.ask("[bold]Iniciar pipeline?[/bold]", default=True):
-        console.print("[dim]Cancelado.[/dim]")
+    if not Confirm.ask("[bold]Start pipeline?[/bold]", default=True):
+        console.print("[dim]Cancelled.[/dim]")
         sys.exit(0)
 
     pipeline    = SDDPipeline()
     output_path = pipeline.run(
-        ferramentas=ferramentas,
-        contexto=contexto,
-        foco=foco,
-        questoes=questoes,
+        tools=tools,
+        context=context,
+        focus=focus,
+        questions=questions,
     )
 
-    checklist_pos_execucao(validacoes, output_path)
+    post_execution_checklist(validations, output_path)
 
 
 if __name__ == "__main__":

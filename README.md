@@ -1,94 +1,94 @@
 # SDD Tech Writer
 
-Gerador de artigos técnicos comparativos usando LLMs locais via Ollama.
+A comparative technical article generator using local LLMs via Ollama.
 
-Você informa as ferramentas, o contexto de uso e as perguntas que o artigo deve responder. O sistema pesquisa (via DuckDuckGo + scraping), analisa, escreve e valida. Tudo roda na sua máquina sem enviar dados para APIs pagas ou depender de chaves externas.
-
----
-
-## Por que SDD
-
-SDD (Spec-Driven Development) é uma abordagem onde a **especificação é a fonte de verdade**, não o código ou o texto gerado. Todo output deriva de um contrato formal definido antes da execução.
-
-No desenvolvimento tradicional de conteúdo técnico, o que é um "bom artigo" vive na cabeça de quem escreve. Aqui, vive em `spec/article_spec.yaml`. Isso significa que:
-
-- O modelo não decide o que é aceitável. A spec decide.
-- A validação é determinística e não subjetiva.
-- Quando a spec muda, o comportamento muda junto em todo o pipeline.
-
-O resultado prático é que o sistema **rejeita outputs ruins automaticamente** e tenta corrigir antes de entregar.
+You provide the tools, usage context, and questions the article should answer. The system researches (via DuckDuckGo + scraping), analyzes, writes, and validates. Everything runs on your machine without sending data to paid APIs or depending on external keys.
 
 ---
 
-## O que está sendo usado e por quê
+## Why SDD
+
+SDD (Spec-Driven Development) is an approach where the **specification is the source of truth**, not the generated code or text. Every output derives from a formal contract defined before execution.
+
+In traditional technical content development, what makes a "good article" lives in the writer's head. Here, it lives in `spec/article_spec.yaml`. This means that:
+
+- The model doesn't decide what is acceptable. The spec does.
+- Validation is deterministic, not subjective.
+- When the spec changes, behavior changes throughout the entire pipeline.
+
+The practical result is that the system **automatically rejects poor outputs** and attempts to correct them before delivery.
+
+---
+
+## What is being used and why
 
 ### Spec (`spec/article_spec.yaml`)
-Define o contrato do artigo: seções obrigatórias, regras de qualidade, configuração do scraper, modelos a usar e configuração do Ollama. É o único arquivo que você precisa editar para mudar o comportamento global do sistema.
+Defines the article contract: mandatory sections, quality rules, scraper configuration, models to use, and Ollama settings. It's the only file you need to edit to change the system's global behavior.
 
 ### Skills
-Cada etapa do pipeline é uma classe especializada com responsabilidade única. Modelos locais menores performam melhor em tarefas focadas do que em prompts gigantes que pedem tudo de uma vez.
+Each pipeline stage is a specialized class with a single responsibility. Smaller local models perform better on focused tasks than on giant prompts asking for everything at once.
 
-| Skill | Responsabilidade |
+| Skill | Responsibility |
 |-------|-----------------|
-| `ResearcherSkill` | Busca na web (DuckDuckGo) + scraping (Trafilatura/curl_cffi/Playwright) para extrair dados factuais |
-| `AnalystSkill` | Transforma dados brutos em análise (comparativa, integração ou ferramenta única) |
-| `WriterSkill` | Monta o artigo seguindo a spec |
-| `CriticSkill` | Valida o artigo em duas camadas |
+| `ResearcherSkill` | Web search (DuckDuckGo) + scraping (Trafilatura/curl_cffi/Playwright) to extract factual data |
+| `AnalystSkill` | Transforms raw data into analysis (comparative, integration, or single tool) |
+| `WriterSkill` | Composes the article following the spec |
+| `CriticSkill` | Validates the article in two layers |
 
-### Critic em duas camadas
-**Camada 1 (Determinística):** Verifica estrutura, placeholders, URLs inventadas, soluções vazias e mínimos de qualidade. Sem LLM, sem custo de tokens, sempre confiável.
+### Critic in two layers
+**Layer 1 (Deterministic):** Checks structure, placeholders, invented URLs, empty solutions, and quality minimums. No LLM, no token cost, always reliable.
 
-**Camada 2 (Semântica):** Pergunta ao modelo se há contradições internas, comandos inexistentes ou números impossíveis. Só roda se a camada 1 passou. Problemas semânticos agora também reprovam o artigo e geram correções.
+**Layer 2 (Semantic):** Asks the model if there are internal contradictions, non-existent commands, or impossible numbers. Only runs if layer 1 passed. Semantic problems now also reject the article and generate corrections.
 
-Se o artigo reprovar, o pipeline tenta corrigir automaticamente (máximo 3 iterações) antes de salvar.
+If the article fails, the pipeline automatically attempts to correct it (maximum 3 iterations) before saving.
 
 ### Memory
-O sistema aprende entre execuções. Quando uma correção resolve um problema recorrente, isso é salvo e injetado como contexto nas próximas execuções. Lições são priorizadas por frequência de uso, não apenas por recência.
+The system learns between executions. When a correction resolves a recurring problem, it is saved and injected as context in subsequent executions. Lessons are prioritized by usage frequency, not just recency.
 
-| Tipo | O que guarda |
+| Type | What it stores |
 |------|-------------|
-| Working | Estado da sessão atual |
-| Episódica | Log do que aconteceu (persistente, com rotação) |
-| Procedural | Receitas de correção que funcionaram |
+| Working | Current session state |
+| Episodic | Log of what happened (persistent, with rotation) |
+| Procedural | Correction recipes that worked |
 
 ### Observability
-Cada etapa mostra spinner, tempo de execução e resultado em tempo real. Métricas de cada execução são salvas em `output/metrics.json` para análise posterior.
+Each stage shows a spinner, execution time, and results in real-time. Metrics from each execution are saved in `output/metrics.json` for later analysis.
 
 ---
 
-## Estrutura do projeto
+## Project structure
 
 ```text
-projeto/
+project/
 ├── spec/
-│   └── article_spec.yaml      # contrato - edite aqui para mudar comportamento
+│   └── article_spec.yaml      # contract - edit here to change behavior
 ├── memory/
-│   └── memory_store.py        # memória persistente entre execuções
+│   └── memory_store.py        # persistent memory between executions
 ├── validators/
-│   └── spec_validator.py      # validação determinística
+│   └── spec_validator.py      # deterministic validation
 ├── skills/
-│   ├── researcher.py          # busca e extração de dados
-│   ├── analyst.py             # análise comparativa / integração / single
-│   ├── writer.py              # geração do artigo
-│   └── critic.py              # validação em duas camadas
+│   ├── researcher.py          # search and data extraction
+│   ├── analyst.py             # comparative / integration / single tool analysis
+│   ├── writer.py              # article generation
+│   └── critic.py              # two-layer validation
 ├── tools/
-│   ├── search_tool.py         # integração DuckDuckGo (com retry)
-│   └── scraper_tool.py        # extração de conteúdo (Trafilatura + curl_cffi + Playwright)
-├── logger.py                  # output visual com Rich
-├── pipeline.py                # orquestração do fluxo
-├── main.py                    # CLI interativo
-├── .memory/                   # criado automaticamente
-├── output/                    # criado automaticamente
-└── artigos/                   # artigos gerados
+│   ├── search_tool.py         # DuckDuckGo integration (with retry)
+│   └── scraper_tool.py        # content extraction (Trafilatura + curl_cffi + Playwright)
+├── logger.py                  # visual output with Rich
+├── pipeline.py                # flow orchestration
+├── main.py                    # interactive CLI
+├── .memory/                   # created automatically
+├── output/                    # created automatically
+└── articles/                  # generated articles
 ```
 
 ---
 
-## Instalação
+## Installation
 
-### 1. Pré-requisitos
+### 1. Prerequisites
 
-**Rust** (necessário para compilar dependências Python):
+**Rust** (required to compile Python dependencies):
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source ~/.cargo/env
@@ -101,10 +101,10 @@ rustup default stable
 curl -fsSL https://ollama.com/install.sh | sh
 
 # Windows
-# baixe em https://ollama.com/download/windows
+# download at https://ollama.com/download/windows
 ```
 
-**uv** (gerenciador de pacotes):
+**uv** (package manager):
 ```bash
 # Linux/macOS
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -113,143 +113,143 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-### 2. Clone e configure o projeto
+### 2. Clone and configure the project
 
 ```bash
-git clone <seu-repositorio>
+git clone <your-repository>
 cd sdd-ollama
 
-# cria ambiente virtual com Python 3.12
+# create virtual environment with Python 3.12
 uv venv --python 3.12
 uv add ollama requests python-dotenv pyyaml rich duckduckgo-search trafilatura curl_cffi
 
-# opcional — fallback para páginas JavaScript-heavy
+# optional — fallback for JavaScript-heavy pages
 uv add playwright
 playwright install chromium
 ```
 
-### 3. Baixe os modelos
+### 3. Download models
 
-Escolha os modelos de acordo com o seu hardware.
+Choose models according to your hardware.
 
-**8GB de RAM (sem GPU dedicada):**
+**8GB of RAM (no dedicated GPU):**
 ```bash
 ollama pull qwen3:8b
 ```
 
-**32GB de RAM + 8GB de VRAM (recomendado):**
+**32GB of RAM + 8GB of VRAM (recommended):**
 ```bash
 ollama pull qwen3:8b          # researcher, analyst, critic
-ollama pull qwen3:30b-a3b     # writer (MoE — só 3B ativos por token)
+ollama pull qwen3:30b-a3b     # writer (MoE — only 3B active per token)
 ```
 
-Verifique se estão disponíveis:
+Verify they are available:
 ```bash
 ollama list
 ```
 
-### 4. Verifique a configuração
+### 4. Verify configuration
 
-Nenhuma chave de API é necessária. Confirme apenas que o Ollama está rodando:
+No API keys are required. Just confirm that Ollama is running:
 ```bash
 curl http://localhost:11434
-# deve retornar: Ollama is running
+# should return: Ollama is running
 ```
 
 ---
 
-## Uso
+## Usage
 
 ```bash
 python main.py
 ```
 
-O CLI vai guiar você por cinco etapas:
+The CLI will guide you through five stages:
 
-**1. Ferramentas** (o que você quer comparar ou analisar):
+**1. Tools** (what you want to compare or analyze):
 ```text
-podman e docker
-kafka e flink
+podman and docker
+kafka and flink
 ollama
-prometheus e grafana
+prometheus and grafana
 ```
 
-**2. Contexto** (para qual situação específica):
+**2. Context** (for which specific situation):
 ```text
-ambiente de desenvolvimento local no Linux
-pipeline de ingestão de logs em tempo real
-rodando LLMs com até 8GB de RAM
-observability em stack FastAPI com docker compose
+local development environment on Linux
+real-time log ingestion pipeline
+running LLMs with up to 8GB of RAM
+observability on FastAPI stack with docker compose
 ```
 
-**3. Foco** (qual aspecto aprofundar):
+**3. Focus** (which aspect to deep dive into):
 ```text
-1. comparação geral
+1. general comparison
 2. performance / throughput
-3. custo
-4. migração
-5. integração
-6. segurança
-7. hardware limitado / edge
-8. quantização / modelos locais
+3. cost
+4. migration
+5. integration
+6. security
+7. limited hardware / edge
+8. quantization / local models
 ```
 
-**4. Perguntas** (o que o artigo deve responder explicitamente):
+**4. Questions** (what the article must explicitly answer):
 ```text
-como configurar modo rootless?
-docker-compose funciona sem mudanças no podman?
-qual tem menor uso de RAM em idle?
-[enter para terminar]
+how to configure rootless mode?
+does docker-compose work without changes in podman?
+which has the lowest RAM usage at idle?
+[enter to finish]
 ```
 
-**5. Critérios de validação** (checklist manual após a geração):
+**5. Validation criteria** (manual checklist after generation):
 ```text
-menciona que podman é daemonless
-tem tabela comparativa com pelo menos 4 critérios
-[enter para terminar]
+mentions that podman is daemonless
+has comparative table with at least 4 criteria
+[enter to finish]
 ```
 
 ---
 
-## O que é gerado
+## What is generated
 
 ```text
-artigos/
-└── podman-e-docker_20250407_1430.md   # artigo final
+articles/
+└── podman-and-docker_20250407_1430.md   # final article
 
 output/
-├── debug_research.md                  # dados brutos da pesquisa
-├── debug_analysis.md                  # análise antes da escrita
-├── urls_podman.txt                    # URLs consultadas por ferramenta
+├── debug_research.md                  # raw research data
+├── debug_analysis.md                  # analysis before writing
+├── urls_podman.txt                    # URLs consulted by tool
 ├── urls_docker.txt
-└── metrics.json                       # métricas de cada execução
+└── metrics.json                       # metrics from each execution
 
 .memory/
-├── episodic.json                      # log de eventos
-└── procedural.json                    # correções que funcionaram
+├── episodic.json                      # event log
+└── procedural.json                    # corrections that worked
 ```
 
 ---
 
-## Configuração avançada
+## Advanced configuration
 
-Edite `spec/article_spec.yaml` para personalizar.
+Edit `spec/article_spec.yaml` to customize.
 
 ```yaml
-# modelos — ajuste ao seu hardware
+# models — adjust to your hardware
 models:
   researcher: "qwen3:8b"
   analyst:    "qwen3:8b"
-  writer:     "qwen3:30b-a3b"   # fallback: qwen3:14b se ficar lento
+  writer:     "qwen3:30b-a3b"   # fallback: qwen3:14b if slow
   critic:     "qwen3:8b"
 
-# temperatura
+# temperature
 ollama:
   temperature:
-    researcher: 0.1   # mais baixo = mais factual
-    writer:     0.3   # mais alto = mais criativo
+    researcher: 0.1   # lower = more factual
+    writer:     0.3   # higher = more creative
 
-# contexto por role
+# context per role
   context_length:
     default: 8192
     writer:  16384
@@ -261,7 +261,7 @@ research:
     max_scrapes_per_tool: 10
     timeout_seconds: 15
 
-# regras de qualidade
+# quality rules
 article:
   quality_rules:
     min_references: 3
@@ -271,52 +271,52 @@ article:
 
 ---
 
-## Limitações Críticas e Conhecidas
+## Known Critical Limitations
 
-**Scraping pode falhar em páginas JavaScript-heavy.** O sistema tenta 3 estratégias em cascata: curl_cffi (bypass Cloudflare básico) → Trafilatura (extração HTML estático) → Playwright (renderização JS completa). Se todas falharem, usa o snippet do DuckDuckGo como fallback.
+**Scraping may fail on JavaScript-heavy pages.** The system tries 3 cascading strategies: curl_cffi (basic Cloudflare bypass) → Trafilatura (static HTML extraction) → Playwright (full JS rendering). If all fail, it uses the DuckDuckGo snippet as fallback.
 
-**Rate Limits do DuckDuckGo.** A busca usa a API não-oficial do DuckDuckGo com delay de 1.5s entre queries e retry automático. Ainda assim, rodar o pipeline muitas vezes em sequência pode resultar em bloqueio temporário do seu IP.
+**DuckDuckGo rate limits.** Search uses the unofficial DuckDuckGo API with 1.5s delay between queries and automatic retry. Still, running the pipeline many times in sequence may result in temporary IP blocking.
 
-**Atenção aos limites de memória RAM.** O modelo `qwen3:30b-a3b` é MoE e roda com offload, mas ainda exige 32GB de RAM. Se seu hardware for mais limitado, use `qwen3:8b` em todos os roles.
+**Watch out for RAM memory limits.** The `qwen3:30b-a3b` model is MoE and runs with offload, but still requires 32GB of RAM. If your hardware is more limited, use `qwen3:8b` for all roles.
 
-**Ferramentas obscuras geram artigos mais rasos.** Se o DuckDuckGo não retorna bons resultados e o scraper falha nas páginas encontradas, o artigo vai ter lacunas. O sistema agora omite dados ao invés de inventar, mas o conteúdo será mais curto.
+**Obscure tools generate shallower articles.** If DuckDuckGo doesn't return good results and the scraper fails on found pages, the article will have gaps. The system now omits data instead of inventing, but content will be shorter.
 
 ---
 
-## Como a memória melhora o sistema ao longo do tempo
+## How memory improves the system over time
 
-Na primeira execução a memória está vazia. O sistema se comporta como qualquer pipeline sem estado.
+On first execution, memory is empty. The system behaves like any stateless pipeline.
 
-A partir da segunda execução, se houve correções na primeira, essas lições são injetadas no contexto do writer antes de gerar. Lições são priorizadas por frequência de uso — correções que resolveram problemas em múltiplas execuções aparecem primeiro.
+From the second execution onwards, if there were corrections in the first, those lessons are injected into the writer's context before generation. Lessons are prioritized by usage frequency — corrections that solved problems across multiple executions appear first.
 
-Para inspecionar o que foi aprendido:
+To inspect what was learned:
 ```bash
 cat .memory/procedural.json
 cat .memory/episodic.json
 ```
 
-### Referência rápida — qual foco usar
+### Quick reference — which focus to use
 
-| Situação | Foco recomendado |
+| Situation | Recommended focus |
 |----------|-----------------|
-| Duas ferramentas que fazem a mesma coisa | comparação geral |
-| Preciso decidir qual adotar para o time | comparação geral |
-| Ferramentas que trabalham juntas | integração |
-| Hardware com pouca RAM ou CPU | hardware limitado / edge |
-| Rodando modelos de IA localmente | quantização / modelos locais |
-| Migrando de uma ferramenta para outra | migração |
-| Custo é o critério principal | custo |
-| Ambiente de produção com requisitos de segurança | segurança |
-| Pipeline de dados com volume alto | performance / throughput |
+| Two tools that do the same thing | general comparison |
+| I need to decide which to adopt for the team | general comparison |
+| Tools that work together | integration |
+| Hardware with little RAM or CPU | limited hardware / edge |
+| Running AI models locally | quantization / local models |
+| Migrating from one tool to another | migration |
+| Cost is the main criterion | cost |
+| Production environment with security requirements | security |
+| Data pipeline with high volume | performance / throughput |
 
 ---
 
 ## Roadmap
 
-- [x] ~~Plugar extrator de web scraping (Trafilatura) para ler conteúdo completo das páginas~~
-- [x] ~~Bypass Cloudflare básico com curl_cffi~~
-- [ ] Fallback com Playwright para páginas JavaScript-heavy que o Trafilatura não consegue extrair
-- [ ] Testes unitários para componentes determinísticos (validator, memory, search)
-- [ ] Feedback loop: checklist manual alimenta a memória automaticamente
-- [ ] Observability persistente com histórico de execuções
-- [ ] Suporte a múltiplos idiomas na spec
+- [x] ~~Plug in web scraping extractor (Trafilatura) to read full page content~~
+- [x] ~~Basic Cloudflare bypass with curl_cffi~~
+- [ ] Fallback with Playwright for JavaScript-heavy pages that Trafilatura can't extract
+- [ ] Unit tests for deterministic components (validator, memory, search)
+- [ ] Feedback loop: manual checklist feeds memory automatically
+- [ ] Persistent observability with execution history
+- [ ] Multi-language support in spec

@@ -11,12 +11,12 @@ class PipelineLogger:
     def __init__(self):
         self.console = Console()
 
-    def pipeline_start(self, ferramentas: str, contexto: str):
+    def pipeline_start(self, tools: str, context: str):
         self.console.print()
         self.console.print(Panel.fit(
             f"[bold cyan]SDD Pipeline[/bold cyan]\n"
-            f"[white]Ferramentas:[/white] [yellow]{ferramentas}[/yellow]\n"
-            f"[white]Contexto:[/white]    [yellow]{contexto}[/yellow]",
+            f"[white]Tools:[/white] [yellow]{tools}[/yellow]\n"
+            f"[white]Context:[/white]    [yellow]{context}[/yellow]",
             border_style="cyan"
         ))
         self.console.print()
@@ -59,33 +59,33 @@ class PipelineLogger:
     def search_done(self, tool: str, n_results: int, n_queries: int):
         self.console.print(
             f"   [green]✓[/green] [white]{tool}[/white] — "
-            f"[cyan]{n_results} resultados[/cyan] de "
+            f"[cyan]{n_results} results[/cyan] from "
             f"[cyan]{n_queries} queries[/cyan]"
         )
 
     def iteration(self, current: int, total: int):
         self.console.print()
-        self.console.print(f"   [bold]Iteração {current}/{total}[/bold]")
+        self.console.print(f"   [bold]Iteration {current}/{total}[/bold]")
 
     def critic_passed(self, layer: str, warnings: list = None):
-        self.console.print(f"   [green]✓ Critic ({layer}): aprovado[/green]")
+        self.console.print(f"   [green]✓ Critic ({layer}): approved[/green]")
         if warnings:
             for w in warnings:
                 self.console.print(f"   [yellow]⚠ {w}[/yellow]")
 
     def critic_failed(self, problems: list):
-        self.console.print(f"   [red]✗ Critic: {len(problems)} problema(s)[/red]")
+        self.console.print(f"   [red]✗ Critic: {len(problems)} problem(s)[/red]")
         for p in problems:
             self.console.print(f"   [red]  • {p}[/red]")
 
     def memory_hit(self, lesson: str):
-        self.console.print(f"   [magenta]💡 Memória: {lesson[:80]}[/magenta]")
+        self.console.print(f"   [magenta]💡 Memory: {lesson[:80]}[/magenta]")
 
     def saved(self, path: str):
         self.console.print()
         self.console.print(Panel.fit(
-            f"[bold green]✓ Concluído[/bold green]\n"
-            f"[white]Salvo em:[/white] [cyan]{path}[/cyan]",
+            f"[bold green]✓ Complete[/bold green]\n"
+            f"[white]Saved in:[/white] [cyan]{path}[/cyan]",
             border_style="green"
         ))
 
@@ -99,17 +99,17 @@ class PipelineLogger:
         for w in result.warnings:
             t.add_row("[yellow]⚠[/yellow]", f"[yellow]{w}[/yellow]")
         if result.passed:
-            t.add_row("[green]✓[/green]", "[green]Todas as validações passaram[/green]")
+            t.add_row("[green]✓[/green]", "[green]All validations passed[/green]")
 
         self.console.print(t)
 
     def error(self, msg: str):
-        self.console.print(f"\n[bold red]ERRO:[/bold red] [red]{msg}[/red]\n")
+        self.console.print(f"\n[bold red]ERROR:[/bold red] [red]{msg}[/red]\n")
 
     def metrics(self, data: dict):
-        t = Table(title="Métricas", border_style="dim")
-        t.add_column("Campo", style="cyan")
-        t.add_column("Valor", style="white")
+        t = Table(title="Metrics", border_style="dim")
+        t.add_column("Field", style="cyan")
+        t.add_column("Value", style="white")
         for k, v in data.items():
             t.add_row(str(k), str(v))
         self.console.print(t)

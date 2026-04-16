@@ -3,7 +3,7 @@ from pathlib import Path
 from ollama import Client
 
 FOCUS_QUERIES: dict[str, list[str]] = {
-    "comparação geral": [
+    "general comparison": [
         "{tool} vs {alternative}",
         "{tool} vs {alternative} when to use which",
         "{tool} vs {alternative} pros cons",
@@ -27,7 +27,7 @@ FOCUS_QUERIES: dict[str, list[str]] = {
         "{tool} scalability limits production",
         "{tool} resource consumption idle vs peak",
     ],
-    "custo": [
+    "cost": [
         "{tool} pricing model tiers",
         "{tool} pricing calculator",
         "{tool} vs {alternative} cost comparison monthly",
@@ -39,7 +39,7 @@ FOCUS_QUERIES: dict[str, list[str]] = {
         "{tool} vs {alternative} total cost of ownership",
         "{tool} pricing changes 2024 2025",
     ],
-    "migração": [
+    "migration": [
         "{tool} migration from {alternative} step by step",
         "{tool} migration guide official docs",
         "{tool} vs {alternative} compatibility layer",
@@ -51,7 +51,7 @@ FOCUS_QUERIES: dict[str, list[str]] = {
         "{tool} migration rollback strategy",
         "{tool} config differences from {alternative}",
     ],
-    "integração": [
+    "integration": [
         "{tool} {alternative} integration example tutorial",
         "{tool} {alternative} end to end setup guide",
         "{tool} {alternative} getting started together",
@@ -63,7 +63,7 @@ FOCUS_QUERIES: dict[str, list[str]] = {
         "{tool} {alternative} common integration errors",
         "{tool} {alternative} production setup best practices",
     ],
-    "segurança": [
+    "security": [
         "{tool} security configuration hardening guide",
         "{tool} vs {alternative} security comparison",
         "{tool} authentication authorization setup RBAC",
@@ -75,7 +75,7 @@ FOCUS_QUERIES: dict[str, list[str]] = {
         "{tool} audit logging security events",
         "{tool} network policy firewall rules",
     ],
-    "hardware limitado / edge": [
+    "limited hardware / edge": [
         "{tool} minimum requirements RAM CPU disk",
         "{tool} raspberry pi ARM installation tutorial",
         "{tool} vs {alternative} resource usage comparison",
@@ -87,7 +87,7 @@ FOCUS_QUERIES: dict[str, list[str]] = {
         "{tool} disable features save resources",
         "{tool} single node small cluster resource usage",
     ],
-    "quantização / modelos locais": [
+    "quantization / local models": [
         "{tool} quantization Q4_K_M Q8_0 quality difference",
         "{tool} recommended models 8GB RAM 16GB RAM list",
         "{tool} tokens per second benchmark results table",
@@ -114,7 +114,7 @@ DEFAULT_QUERIES = [
     "{tool} best practices production",
 ]
 
-# URLs que gastam tokens sem retornar dados úteis
+# URLs that consume tokens without returning useful data
 SKIP_DOMAINS = {
     "youtube.com", "youtu.be", "twitter.com", "x.com",
     "facebook.com", "instagram.com", "tiktok.com",
@@ -139,11 +139,11 @@ class ResearcherSkill:
         self.llm = Client(host=self.spec["ollama"]["base_url"], timeout=self.timeout)
 
     # ------------------------------------------------------------------
-    # público
+    # public
     # ------------------------------------------------------------------
-    def run(self, tool, alternative="", foco="comparação geral", questoes=None):
-        questoes = questoes or []
-        queries = self._build_queries(tool, alternative, foco, questoes)
+    def run(self, tool, alternative="", focus="general comparison", questions=None):
+        questions = questions or []
+        queries = self._build_queries(tool, alternative, focus, questions)
 
         results_by_query = self.search.search_multi(queries)
         self.search.save_urls(results_by_query, f"output/urls_{tool}.txt")
@@ -151,49 +151,49 @@ class ResearcherSkill:
         context = self._build_context(results_by_query)
         lessons = self.memory.get_lessons_for_prompt()
 
-        questoes_block = ""
-        if questoes:
-            lista = "\n".join(f"- {q}" for q in questoes)
-            questoes_block = f"\nBusque dados específicos para responder:\n{lista}\n"
+        questions_block = ""
+        if questions:
+            lista = "\n".join(f"- {q}" for q in questions)
+            questions_block = f"\nSeek specific data to answer:\n{lista}\n"
 
-        prompt = f"""Você é um pesquisador técnico. Analise os dados abaixo sobre {tool}.
-Foco desta pesquisa: {foco}
-{questoes_block}
+        prompt = f"""You are a technical researcher. Analyze the data below about {tool}.
+Focus of this research: {focus}
+{questions_block}
 {lessons}
 
-DADOS DA BUSCA:
+SEARCH DATA:
 {context}
 
-REGRAS CRÍTICAS:
-- Extraia APENAS o que está nos dados acima
-- Se um dado NÃO aparece nos resultados, OMITA a linha inteira
-- NUNCA escreva "NÃO ENCONTRADO", "DADO AUSENTE", "N/A" ou qualquer placeholder
-- Se uma seção inteira não tem dados, escreva: "Sem dados nos resultados para esta seção."
-- NUNCA invente números, versões ou comandos
-- Copie comandos EXATOS dos snippets
-- URLs marcadas como SCRAPE_FALHOU têm apenas o snippet do buscador — dados rasos
+CRITICAL RULES:
+- Extract ONLY what is in the data above
+- If a piece of data does NOT appear in the results, OMIT the entire line
+- NEVER write "NOT FOUND", "DATA ABSENT", "N/A" or any placeholder
+- If an entire section has no data, write: "No data in results for this section."
+- NEVER invent numbers, versions or commands
+- Copy EXACT commands from snippets
+- URLs marked as SCRAPE_FAILED have only the search snippet — shallow data
 
-Produza o relatório:
+Produce the report:
 
-## URLS CONSULTADAS
-[liste APENAS URLs que começam com https://]
+## CONSULTED URLS
+[list ONLY URLs that start with https://]
 
-## REQUISITOS DE HARDWARE
-[Se encontrou valores concretos, liste-os. Senão, explique brevemente
- por que não existem requisitos oficiais se os dados sugerirem isso,
- ou omita esta seção.]
+## HARDWARE REQUIREMENTS
+[If you found concrete values, list them. Otherwise, briefly explain
+ why there are no official requirements if the data suggests this,
+ or omit this section.]
 
-## COMANDOS DE INSTALAÇÃO
-[comandos exatos dos snippets em blocos ```bash]
+## INSTALLATION COMMANDS
+[exact commands from snippets in ```bash blocks]
 
-## ERROS COMUNS
-[erros encontrados nos resultados com causa e solução]
+## COMMON ERRORS
+[errors found in results with cause and solution]
 
-## DADOS RELEVANTES PARA: {foco}
-[informações específicas sobre o foco]
+## DATA RELEVANT TO: {focus}
+[specific information about the focus]
 
-## ALTERNATIVAS MENCIONADAS
-[ferramentas comparadas nos resultados]
+## MENTIONED ALTERNATIVES
+[tools compared in the results]
 """
         resp = self.llm.generate(
             model=self.model,
@@ -203,7 +203,7 @@ Produza o relatório:
 
         self.memory.log_event("research_done", {
             "tool": tool,
-            "foco": foco,
+            "focus": focus,
             "queries": queries,
             "scrape_stats": self._last_scrape_stats,
         })
@@ -212,19 +212,19 @@ Produza o relatório:
     # ------------------------------------------------------------------
     # queries
     # ------------------------------------------------------------------
-    def _build_queries(self, tool, alternative, foco, questoes):
-        templates = FOCUS_QUERIES.get(foco, DEFAULT_QUERIES)
+    def _build_queries(self, tool, alternative, focus, questions):
+        templates = FOCUS_QUERIES.get(focus, DEFAULT_QUERIES)
         alt = alternative or "alternatives"
         queries = [
             q.replace("{tool}", tool).replace("{alternative}", alt)
             for q in templates
         ]
-        for q in questoes[:4]:
+        for q in questions[:4]:
             queries.append(f"{tool} {q}")
         return queries
 
     # ------------------------------------------------------------------
-    # contexto
+    # context
     # ------------------------------------------------------------------
     def _build_context(self, results_by_query):
         lines = []
@@ -234,7 +234,7 @@ Produza o relatório:
         total_scrapes = 0
 
         for query, results in results_by_query.items():
-            lines.append(f"\n### Busca: {query}")
+            lines.append(f"\n### Search: {query}")
 
             for r in results:
                 url = r.get("url", "")
@@ -246,7 +246,7 @@ Produza o relatório:
 
                 if total_scrapes >= MAX_SCRAPES_PER_TOOL:
                     lines.append(f"URL: {url}")
-                    lines.append(f"Resumo: {r.get('snippet', '')}")
+                    lines.append(f"Summary: {r.get('snippet', '')}")
                     lines.append("---")
                     continue
 
@@ -256,9 +256,9 @@ Produza o relatório:
                 if result["status"] == "ok":
                     scrape_ok += 1
                     text = result["text"][:MAX_CHARS_PER_SCRAPE]
-                    tag = " [TRUNCADO]" if result.get("truncated") else ""
+                    tag = " [TRUNCATED]" if result.get("truncated") else ""
                     lines.append(f"URL: {url}{tag}")
-                    lines.append(f"Conteúdo Extraído:\n{text}")
+                    lines.append(f"Extracted Content:\n{text}")
                     lines.append("---")
                 else:
                     scrape_fail += 1
@@ -267,8 +267,8 @@ Produza o relatório:
                     })
                     snippet = r.get("snippet", "")
                     if snippet:
-                        lines.append(f"URL: {url} [SCRAPE_FALHOU: {result['status']}]")
-                        lines.append(f"Resumo (fallback): {snippet}")
+                        lines.append(f"URL: {url} [SCRAPE_FAILED: {result['status']}]")
+                        lines.append(f"Summary (fallback): {snippet}")
                         lines.append("---")
 
         self._last_scrape_stats = {

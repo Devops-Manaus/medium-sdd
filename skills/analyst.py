@@ -14,58 +14,58 @@ class AnalystSkill:
         self.timeout = timeouts.get("analyst", timeouts.get("default", 300))
         self.llm    = Client(host=self.spec["ollama"]["base_url"], timeout=self.timeout)
 
-    def run(self, research, ferramentas, contexto,
-            foco="comparação geral", questoes=None):
+    def run(self, research, tools, context,
+            focus="general comparison", questions=None):
 
-        questoes = questoes or []
-        tools = [t.strip() for t in ferramentas.lower().replace(" e ", ",").split(",") if t.strip()]
-        is_single = len(tools) == 1
-        is_integration = foco == "integração"
+        questions = questions or []
+        tools_list = [t.strip() for t in tools.lower().replace(" and ", ",").split(",") if t.strip()]
+        is_single = len(tools_list) == 1
+        is_integration = focus == "integration"
 
-        questoes_block = ""
-        if questoes:
-            lista = "\n".join(f"- {q}" for q in questoes)
-            questoes_block = f"\nA análise deve fornecer dados para responder:\n{lista}\n"
+        questions_block = ""
+        if questions:
+            lista = "\n".join(f"- {q}" for q in questions)
+            questions_block = f"\nThe analysis must provide data to answer:\n{lista}\n"
 
         if is_single:
-            table_block = self._single_tool_template(tools[0], foco)
+            table_block = self._single_tool_template(tools_list[0], focus)
         elif is_integration:
-            table_block = self._integration_template(tools, foco)
+            table_block = self._integration_template(tools_list, focus)
         else:
-            table_block = self._comparison_template(tools, foco)
+            table_block = self._comparison_template(tools_list, focus)
 
-        prompt = f"""Você é um analista técnico. Analise os dados de pesquisa abaixo.
+        prompt = f"""You are a technical analyst. Analyze the research data below.
 
-FERRAMENTAS: {ferramentas}
-CONTEXTO DE USO: {contexto}
-FOCO DA ANÁLISE: {foco}
-{questoes_block}
+TOOLS: {tools}
+USAGE CONTEXT: {context}
+ANALYSIS FOCUS: {focus}
+{questions_block}
 
-DADOS DA PESQUISA:
+RESEARCH DATA:
 {research}
 
-REGRAS CRÍTICAS:
-- Produza APENAS o que os dados suportam
-- Se um dado não existe na pesquisa, OMITA a linha ou célula da tabela
-- NUNCA escreva "DADO AUSENTE", "NÃO ENCONTRADO", "N/A" ou qualquer placeholder
-- Se uma tabela inteira não tem dados suficientes, substitua por um parágrafo
-  explicando o que se sabe
-- Células vazias são PROIBIDAS — remova a linha inteira se não tiver dado
-- NUNCA use frases genéricas como "consulte a documentação" ou "conforme necessário"
+CRITICAL RULES:
+- Produce ONLY what the data supports
+- If data doesn't exist in the research, OMIT the line or table cell
+- NEVER write "DATA ABSENT", "NOT FOUND", "N/A" or any placeholder
+- If an entire table doesn't have enough data, replace it with a paragraph
+  explaining what is known
+- Empty cells are FORBIDDEN — remove the entire row if there's no data
+- NEVER use generic phrases like "consult the documentation" or "as needed"
 
 {table_block}
 
-## PRÓS
-[3 itens com justificativa técnica baseada nos dados]
+## PROS
+[3 items with technical justification based on data]
 
-## CONTRAS
-[3 itens com justificativa técnica baseada nos dados]
+## CONS
+[3 items with technical justification based on data]
 
-## OTIMIZAÇÕES
-[3 dicas com comando real se disponível nos dados]
+## OPTIMIZATIONS
+[3 tips with actual command if available in data]
 
-## RECOMENDAÇÃO
-[1 parágrafo: recomendação para "{contexto}" considerando "{foco}"]
+## RECOMMENDATION
+[1 paragraph: recommendation for "{context}" considering "{focus}"]
 """
         resp = self.llm.generate(
             model=self.model,
@@ -74,41 +74,41 @@ REGRAS CRÍTICAS:
         )
 
         self.memory.log_event("analysis_done", {
-            "ferramentas": ferramentas,
-            "foco": foco,
+            "tools": tools,
+            "focus": focus,
             "mode": "single" if is_single else ("integration" if is_integration else "comparison"),
         })
         return resp.response
 
-    def _comparison_template(self, tools, foco):
-        t1, t2 = tools[0], tools[1] if len(tools) > 1 else "alternativa"
-        return f"""## TABELA DE REQUISITOS
-[Se há dados concretos de RAM/CPU, faça a tabela.
- Se não há requisitos oficiais, escreva um parágrafo curto explicando por quê.]
+    def _comparison_template(self, tools, focus):
+        t1, t2 = tools[0], tools[1] if len(tools) > 1 else "alternative"
+        return f"""## REQUIREMENTS TABLE
+[If there are concrete RAM/CPU data, make the table.
+ If there are no official requirements, write a short paragraph explaining why.]
 
-## TABELA COMPARATIVA
-| Critério | {t1} | {t2} |
+## COMPARISON TABLE
+| Criterion | {t1} | {t2} |
 |----------|------|------|
-[mínimo 5 critérios — APENAS os que têm dados para ambas as colunas]
-[se só tem dado pra um lado, remova a linha]"""
+[minimum 5 criteria — ONLY those with data for both columns]
+[if data exists only for one side, remove the row]"""
 
-    def _integration_template(self, tools, foco):
-        return f"""## TABELA DE REQUISITOS
-[requisitos combinados do stack completo]
+    def _integration_template(self, tools, focus):
+        return f"""## REQUIREMENTS TABLE
+[combined requirements of the complete stack]
 
-## COMO SE ENCAIXAM
-[explique o papel de cada ferramenta no pipeline — quem produz, quem consome]
+## HOW THEY FIT
+[explain the role of each tool in the pipeline — who produces, who consumes]
 
-## TABELA DE INTEGRAÇÃO
-| Aspecto | {tools[0]} | {tools[1] if len(tools) > 1 else ''} | Como conectar |
+## INTEGRATION TABLE
+| Aspect | {tools[0]} | {tools[1] if len(tools) > 1 else ''} | How to connect |
 |---------|------|------|---------------|
-[mínimo 4 aspectos com dados concretos de como integrar]"""
+[minimum 4 aspects with concrete data on how to integrate]"""
 
-    def _single_tool_template(self, tool, foco):
-        return f"""## TABELA DE REQUISITOS
-[Se há dados concretos de RAM/CPU, faça a tabela.
- Se não há requisitos oficiais, escreva um parágrafo curto explicando por quê.]
+    def _single_tool_template(self, tool, focus):
+        return f"""## REQUIREMENTS TABLE
+[If there are concrete RAM/CPU data, make the table.
+ If there are no official requirements, write a short paragraph explaining why.]
 
-## ANÁLISE DETALHADA: {tool}
-[análise focada em {foco} com dados concretos da pesquisa]
-[organize por subtópicos relevantes ao foco]"""
+## DETAILED ANALYSIS: {tool}
+[analysis focused on {focus} with concrete data from research]
+[organize by subtopics relevant to the focus]"""
