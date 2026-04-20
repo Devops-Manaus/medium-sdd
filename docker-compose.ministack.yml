@@ -1,0 +1,25 @@
+services:
+  ministack:
+    image: ministackorg/ministack:latest
+    container_name: medium-sdd-ministack
+    restart: unless-stopped
+    ports:
+      - "${MINISTACK_GATEWAY_PORT:-4566}:4566"
+    environment:
+      MINISTACK_REGION: "${MINISTACK_REGION:-us-east-1}"
+      MINISTACK_ACCOUNT_ID: "${MINISTACK_ACCOUNT_ID:-000000000000}"
+    volumes:
+      - ./ministack/init-scripts:/docker-entrypoint-initaws.d
+      - ./.data/ministack:/var/lib/ministack
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:4566/_ministack/health', timeout=3).read()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 5s

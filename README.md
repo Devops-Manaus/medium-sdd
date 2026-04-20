@@ -315,3 +315,92 @@ head -20 spec/article_spec.yaml
 ```
 
 See `docs/spec-implementation-mapping.md` for complete rule-to-code mapping.
+
+## AWS local com MiniStack
+
+O repositório inclui uma infra opcional para simular AWS localmente em `http://localhost:4566` com MiniStack.
+
+Essa camada não substitui a pipeline principal e não é obrigatória para gerar artigos. O objetivo dela é oferecer um alvo de execução mais próximo de integrações reais com `AWS CLI`, `boto3` e Terraform, sem depender de uma conta AWS real.
+
+### Quando usar
+
+Use `host local` quando o fluxo for puramente local e não depender de APIs estilo AWS.
+
+Use `aws emulada local (MiniStack)` quando você quiser:
+
+- testar integrações com `S3`, `SQS`, `DynamoDB`, `STS` e serviços similares
+- validar exemplos técnicos com endpoint real em `localhost:4566`
+- reduzir diferença entre desenvolvimento local e ambiente que fala com APIs AWS
+- resetar o estado do ambiente rapidamente entre testes
+
+### O que você ganha
+
+Comparado a um fluxo somente em `host local`, o ganho principal não é velocidade bruta da pipeline. O ganho é previsibilidade de integração.
+
+- mesmo endpoint local para todo o time
+- credenciais fake, sem risco de uso de conta AWS real
+- ambiente resetável e reproduzível
+- exemplos e testes mais próximos do comportamento esperado de SDKs AWS
+- menos necessidade de mocks manuais para fluxos com bucket, fila e tabela
+
+### O que não muda
+
+- a pipeline continua sendo executada com `uv run python main.py`
+- MiniStack continua opcional
+- o uso de MiniStack pode adicionar algum overhead local de Docker; o benefício está na fidelidade do ambiente, não em poupar CPU/RAM
+
+Arquivos principais:
+
+- `docker-compose.ministack.yml`: modo base, ideal para desenvolvimento local do dia a dia
+- `ministack/init-scripts/ready.d/01-bootstrap.py`: bootstrap automático do ambiente local
+- `docs/ministack-local-aws.md`: guia de uso com AWS CLI, boto3 e Terraform
+
+### O que o bootstrap faz
+
+O arquivo `ministack/init-scripts/ready.d/01-bootstrap.py` existe para evitar que o MiniStack suba vazio. Sempre que o ambiente é iniciado, ele prepara um estado mínimo conhecido:
+
+- cria o bucket `medium-sdd-local`
+- cria a fila `medium-sdd-events`
+- cria a tabela `medium-sdd-config`
+- grava um objeto de healthcheck no bucket
+- grava um item de bootstrap na tabela
+
+Isso economiza setup manual e ajuda em testes repetíveis, principalmente quando você usa reset com reexecução de init scripts.
+
+### Fluxo mínimo
+
+1. Suba o MiniStack.
+
+```bash
+docker compose -f docker-compose.ministack.yml up -d
+```
+
+2. Verifique o healthcheck.
+
+```bash
+curl http://localhost:4566/_ministack/health
+```
+
+3. Se quiser validar a emulação, faça uma chamada AWS local.
+
+```bash
+aws --endpoint-url=http://localhost:4566 sts get-caller-identity
+```
+
+4. Rode a pipeline normalmente.
+
+```bash
+uv run python main.py
+```
+
+5. No CLI, escolha o alvo de execução `aws emulada local (MiniStack)` quando fizer sentido para o artigo ou cenário de integração.
+
+### Reset do ambiente
+
+Reset com reexecução dos scripts de init:
+
+```bash
+curl -X POST "http://localhost:4566/_ministack/reset?init=1"
+```
+
+Isso limpa o estado atual e recria os recursos básicos definidos no bootstrap.

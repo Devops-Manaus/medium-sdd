@@ -29,6 +29,12 @@ FOCOS_DISPONIVEIS = [
 ]
 
 
+ALVOS_EXECUCAO = [
+    "host local",
+    "aws emulada local (MiniStack)",
+]
+
+
 def parse_main_flags(args: list[str]) -> dict:
     refresh_search = "--refresh-search" in args
     return {"refresh_search": refresh_search}
@@ -53,6 +59,24 @@ def perguntar_foco() -> str:
             return FOCOS_DISPONIVEIS[foco_index]
 
     return escolha.strip()
+
+
+def perguntar_alvo_execucao() -> str:
+    console.print("\n[dim]Alvos de execucao disponiveis:[/dim]")
+    for menu_index, alvo_execucao in enumerate(ALVOS_EXECUCAO, MENU_INDEX_START):
+        console.print(f"  [cyan]{menu_index}.[/cyan] {alvo_execucao}")
+
+    escolha = Prompt.ask(
+        "\n[bold]Alvo de execucao[/bold] [dim](numero, enter para padrao)[/dim]",
+        default="1",
+    )
+
+    if escolha.strip().isdigit():
+        alvo_index = int(escolha.strip()) - MENU_INDEX_START
+        if 0 <= alvo_index < len(ALVOS_EXECUCAO):
+            return ALVOS_EXECUCAO[alvo_index]
+
+    return ALVOS_EXECUCAO[0]
 
 
 def perguntar_questoes() -> list[str]:
@@ -90,13 +114,19 @@ def coletar_validacoes() -> list[str]:
     return criterios
 
 
-def exibir_resumo(ferramentas, contexto, foco, questoes, validacoes):
+def montar_contexto_execucao(contexto_base: str, alvo_execucao: str) -> str:
+    contexto_limpo = contexto_base.strip()
+    return f"{contexto_limpo} | alvo de execucao: {alvo_execucao}"
+
+
+def exibir_resumo(ferramentas, contexto, alvo_execucao, foco, questoes, validacoes):
     resumo_table = Table(show_header=False, box=None, padding=(0, 2))
     resumo_table.add_column(style="dim", width=16)
     resumo_table.add_column(style="white")
 
     resumo_table.add_row("Ferramentas", f"[yellow]{ferramentas}[/yellow]")
     resumo_table.add_row("Contexto",    f"[yellow]{contexto}[/yellow]")
+    resumo_table.add_row("Alvo exec.",  f"[magenta]{alvo_execucao}[/magenta]")
     resumo_table.add_row("Foco",        f"[cyan]{foco}[/cyan]")
     resumo_table.add_row(
         "O artigo deve\nresponder",
@@ -150,6 +180,7 @@ def main():
     try:
         ferramentas = Prompt.ask("[bold]Ferramentas[/bold] [dim](ex: podman e docker)[/dim]")
         contexto    = Prompt.ask("[bold]Contexto[/bold]    [dim](ex: ambiente de dev local no Linux)[/dim]")
+        alvo_execucao = perguntar_alvo_execucao()
         foco        = perguntar_foco()
         questoes    = perguntar_questoes()
         validacoes  = coletar_validacoes()
@@ -157,7 +188,9 @@ def main():
         console.print("\n[dim]Cancelado.[/dim]")
         sys.exit(0)
 
-    exibir_resumo(ferramentas, contexto, foco, questoes, validacoes)
+    contexto_execucao = montar_contexto_execucao(contexto, alvo_execucao)
+
+    exibir_resumo(ferramentas, contexto, alvo_execucao, foco, questoes, validacoes)
 
     if not Confirm.ask("[bold]Iniciar pipeline?[/bold]", default=True):
         console.print("[dim]Cancelado.[/dim]")
@@ -170,7 +203,7 @@ def main():
     try:
         output_path = pipeline.run(
             ferramentas=ferramentas,
-            contexto=contexto,
+            contexto=contexto_execucao,
             foco=foco,
             questoes=questoes,
             refresh_search=cli_flags["refresh_search"],
